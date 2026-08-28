@@ -31,6 +31,7 @@ that without adding authentication first.
 | `pnpm seed [n] [--reset]` | insert sample records (`--reset` clears first) |
 | `pnpm backup` | consistent snapshot into `backups/` |
 | `pnpm check` | verifies the validation, query and analytics layers |
+| `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
 | `pnpm typecheck` / `pnpm lint` | types and lint |
 
 ## What's in it
@@ -97,6 +98,25 @@ that without adding authentication first.
 Spreadsheet import is deliberately out of scope for now. When it lands it needs
 header mapping with saved profiles, a dry-run diff before committing, and a
 quarantine for rows that fail validation — the paste box is a stopgap, not that.
+
+## Sharing it temporarily
+
+To let someone else poke at it without deploying anything:
+
+```bash
+pnpm build && pnpm start                              # terminal 1
+cloudflared tunnel --url http://127.0.0.1:3000        # terminal 2
+```
+
+`cloudflared` prints a throwaway `https://*.trycloudflare.com` URL that proxies
+to the local server. It lives only as long as that process, and the hostname is
+different every time. Your machine has to stay awake.
+
+Server actions work through the tunnel unchanged (`pnpm e2e <url>` passes against
+it), so a remote tester gets the full app, forms included.
+
+**There is no authentication.** Anyone with the link can edit and delete. That is
+fine for a throwaway tunnel over sample data; it is not fine for real records.
 
 ## Layout
 

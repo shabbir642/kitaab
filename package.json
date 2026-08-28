@@ -10,7 +10,8 @@
     "seed": "node --import ./scripts/register.mjs scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "check": "node --import ./scripts/register.mjs scripts/check.ts",
-    "backup": "node --import ./scripts/register.mjs scripts/backup.ts"
+    "backup": "node --import ./scripts/register.mjs scripts/backup.ts",
+    "e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
