@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, Trash2, TriangleAlert } from "lucide-react";
 import { FacetMenu } from "./FacetMenu";
 import { PhaseCell } from "./PhaseCell";
 import { bulkStatusAction, deleteRecordsAction } from "@/app/actions";
-import type { Filters, SortKey } from "@/lib/filters";
+import { DEFAULT_SORTS, serializeSorts, sortsEqual, type Filters, type SortKey, type SortSpec } from "@/lib/filters";
 import { COMPLETION_STATUSES, SURVEY_STATUSES, type Assessment } from "@/lib/schema";
 import { cn } from "@/lib/utils";
 
@@ -50,12 +50,23 @@ export function DataTable({
     setSelected(new Set());
   }
 
-  const sortHref = (key: SortKey) => {
+  /** Click sorts by that column; shift-click adds it as a tie-breaker under
+   *  whatever is already there. */
+  const sortBy = (key: SortKey, append: boolean) => {
+    const existing = filters.sorts.find((s) => s.key === key);
+    const flipped: SortSpec = { key, dir: existing?.dir === "asc" ? "desc" : "asc" };
+    const next = append
+      ? existing
+        ? filters.sorts.map((s) => (s.key === key ? flipped : s))
+        : [...filters.sorts, { key, dir: "asc" as const }].slice(0, 4)
+      : [flipped];
+
     const p = new URLSearchParams(searchParams.toString());
-    p.set("sort", key);
-    p.set("dir", filters.sort === key && filters.dir === "asc" ? "desc" : "asc");
     p.delete("page");
-    return `?${p.toString()}`;
+    if (sortsEqual(next, DEFAULT_SORTS)) p.delete("sort");
+    else p.set("sort", serializeSorts(next));
+    const qs = p.toString();
+    router.push(qs ? `?${qs}` : window.location.pathname, { scroll: false });
   };
 
   const allChecked = rows.length > 0 && selected.size === rows.length;
@@ -121,19 +132,13 @@ export function DataTable({
                   )}
                 >
                   {c.key ? (
-                    <Link
-                      href={sortHref(c.key)}
-                      scroll={false}
-                      className="inline-flex items-center gap-1 hover:text-ink"
-                    >
-                      {c.label}
-                      {filters.sort === c.key &&
-                        (filters.dir === "asc" ? (
-                          <ArrowUp size={10} strokeWidth={3} />
-                        ) : (
-                          <ArrowDown size={10} strokeWidth={3} />
-                        ))}
-                    </Link>
+                    <SortHeader
+                      label={c.label}
+                      level={filters.sorts.findIndex((x) => x.key === c.key)}
+                      dir={filters.sorts.find((x) => x.key === c.key)?.dir}
+                      multi={filters.sorts.length > 1}
+                      onSort={(append) => sortBy(c.key!, append)}
+                    />
                   ) : (
                     c.label
                   )}
@@ -241,6 +246,36 @@ export function DataTable({
         </table>
       </div>
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  level,
+  dir,
+  multi,
+  onSort,
+}: {
+  label: string;
+  level: number;
+  dir?: "asc" | "desc";
+  multi: boolean;
+  onSort: (append: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => onSort(e.shiftKey)}
+      title="Click to sort. Shift-click to add as a tie-breaker."
+      className="inline-flex items-center gap-1 uppercase tracking-[0.06em] hover:text-ink"
+    >
+      {label}
+      {dir &&
+        (dir === "asc" ? <ArrowUp size={10} strokeWidth={3} /> : <ArrowDown size={10} strokeWidth={3} />)}
+      {dir && multi && (
+        <span className="text-[9px] tabular-nums text-ink-muted">{level + 1}</span>
+      )}
+    </button>
   );
 }
 

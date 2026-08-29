@@ -89,15 +89,6 @@ export function Rail({
       </div>
 
       <div className="flex flex-col gap-1.5 px-2.5 pb-3">
-        <button
-          type="button"
-          onClick={onOpenPalette}
-          className="flex h-[30px] items-center gap-[7px] rounded-md border border-hairline bg-surface px-2 text-xs text-ink-muted transition-colors hover:text-ink"
-        >
-          <Search size={13} strokeWidth={2} />
-          <span className="flex-1 text-left">Search or jump to</span>
-          <kbd className="rounded-[3px] bg-surface-raised px-1 font-mono text-[10px] text-ink-secondary">⌘K</kbd>
-        </button>
         <Link
           href="/assessments/new"
           className="flex h-[30px] items-center justify-center gap-1.5 rounded-md text-xs font-semibold text-accent-ink"
@@ -173,6 +164,16 @@ export function Rail({
       </div>
 
       <div className="mt-auto flex items-center gap-2 border-t border-hairline px-4 py-2.5">
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          title="Jump to a view, a record or an action"
+          className="flex items-center gap-1.5 text-[12.5px] text-ink-secondary transition-colors hover:text-ink"
+        >
+          <Search size={13} strokeWidth={1.75} />
+          <kbd className="rounded-[3px] bg-surface-raised px-1 font-mono text-[10px]">⌘K</kbd>
+        </button>
+        <span className="h-4 w-px bg-hairline" aria-hidden />
         <Link
           href="/analytics"
           aria-current={pathname === "/analytics" ? "page" : undefined}

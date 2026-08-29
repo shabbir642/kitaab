@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Download, Plus } from "lucide-react";
 import { DataTable, type AssessmentRow } from "@/components/DataTable";
 import { FilterChips } from "@/components/FilterChips";
+import { SearchInput } from "@/components/SearchInput";
+import { SortMenu } from "@/components/SortMenu";
 import { Pagination } from "@/components/Pagination";
 import { parseFilters, toQueryString, type RawParams } from "@/lib/filters";
 import {
@@ -84,8 +86,12 @@ export default async function AssessmentsPage({
         </div>
       </header>
 
-      <div className="pb-3">
+      <div className="flex flex-wrap items-center gap-2 pb-3">
+        <SearchInput value={filters.q} />
         <FilterChips filters={filters} facets={facets} locations={allLocations()} />
+        <span className="ml-auto">
+          <SortMenu sorts={filters.sorts} />
+        </span>
       </div>
 
       <div className="flex-1 border-t border-hairline">

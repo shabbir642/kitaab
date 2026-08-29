@@ -13,14 +13,19 @@ export const metadata: Metadata = {
   description: "The book of assessment records - track, filter and analyse them.",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children, modal }: LayoutProps<"/">) {
   // The rail's counts are absolute, so they are read once per request here
   // rather than threaded through every page.
   const counts = railCounts();
   const locations = locationCounts(20);
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      // the pre-paint theme script stamps data-theme before React hydrates
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
@@ -32,6 +37,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         >
           {children}
         </AppShell>
+        {modal}
       </body>
     </html>
   );

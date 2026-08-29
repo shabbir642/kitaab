@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ChartCard } from "@/components/ChartCard";
 import { FilterChips } from "@/components/FilterChips";
+import { SearchInput } from "@/components/SearchInput";
 import { StatTile } from "@/components/StatTile";
 import { ActivityLine } from "@/components/charts/ActivityLine";
 import { LocationBars } from "@/components/charts/LocationBars";
@@ -71,7 +72,10 @@ export default async function AnalyticsPage({
       </div>
 
       {/* One filter row above everything it scopes. */}
-      <FilterChips filters={filters} facets={facets} locations={allLocations()} />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={filters.q} />
+        <FilterChips filters={filters} facets={facets} locations={allLocations()} />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Records" value={s.total.toLocaleString()} emphasis />

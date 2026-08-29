@@ -65,11 +65,10 @@ export function FilterChips({
     for (const v of current) p.append(key, v);
   };
 
-  /* ---- active chips ---- */
+  /* ---- active chips ----
+     The keyword lives in its own input beside these, so it is deliberately not
+     repeated as a chip. */
   const chips: Chip[] = [];
-  if (filters.q) {
-    chips.push({ key: "q", field: "Search", value: filters.q, remove: (p) => p.delete("q") });
-  }
   const multi: [string, string, string[]][] = [
     ["surveyStatus", "Survey status", filters.surveyStatus],
     ["completionStatus", "Completion status", filters.completionStatus],
@@ -245,7 +244,14 @@ export function FilterChips({
       {chips.length > 0 && (
         <button
           type="button"
-          onClick={() => startTransition(() => router.push(pathname, { scroll: false }))}
+          onClick={() =>
+            commit((p) => {
+              // Clears the filters, not the keyword box sitting next to them.
+              for (const key of [...new Set(p.keys())]) {
+                if (key !== "q" && key !== "sort" && key !== "perPage") p.delete(key);
+              }
+            })
+          }
           className="flex h-[26px] items-center gap-1 rounded-md px-1.5 text-[11.5px] text-ink-secondary hover:text-ink"
         >
           <X size={11} strokeWidth={2.5} /> Clear

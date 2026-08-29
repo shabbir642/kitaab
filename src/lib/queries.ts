@@ -1,7 +1,7 @@
 import { db, rows } from "./db";
 import type { SQLInputValue } from "node:sqlite";
 import type { Filters } from "./filters";
-import { SORTABLE } from "./filters";
+import { DEFAULT_SORTS, SORTABLE } from "./filters";
 import {
   OVERDUE_DAYS,
   PHASES,
@@ -158,10 +158,18 @@ export type ListResult = {
   pageCount: number;
 };
 
+/** ORDER BY for a multi-level sort. NULLS LAST at every level regardless of
+ *  direction: an empty date is "unknown", not "oldest". */
+function orderBy(f: Filters): string {
+  const levels = (f.sorts.length ? f.sorts : DEFAULT_SORTS).map((s) => {
+    const col = SORTABLE[s.key];
+    return `(${col} IS NULL) ASC, ${col} ${s.dir === "asc" ? "ASC" : "DESC"}`;
+  });
+  return [...levels, "id DESC"].join(", ");
+}
+
 export function listAssessments(f: Filters): ListResult {
   const { sql: where, params } = buildWhere(f);
-  const col = SORTABLE[f.sort];
-  const dir = f.dir === "asc" ? "ASC" : "DESC";
 
   const total = Number(
     (db.prepare(`SELECT COUNT(*) AS n FROM assessments WHERE ${where}`).get(...params) as { n: number }).n,
@@ -171,12 +179,11 @@ export function listAssessments(f: Filters): ListResult {
   const page = Math.min(f.page, pageCount);
   const offset = (page - 1) * f.perPage;
 
-  // NULLS LAST regardless of direction: an empty date is "unknown", not "oldest".
   const items = rows<Row>(
     db.prepare(
       `SELECT ${SELECT_COLS} FROM assessments
        WHERE ${where}
-       ORDER BY (${col} IS NULL) ASC, ${col} ${dir}, id DESC
+       ORDER BY ${orderBy(f)}
        LIMIT ? OFFSET ?`,
     ),
     ...params,
@@ -485,12 +492,10 @@ export function byLocation(f: Filters, top = 8): LocationRow[] {
 /** Full filtered set, unpaginated - used by CSV export. */
 export function exportRows(f: Filters): Assessment[] {
   const { sql: where, params } = buildWhere(f);
-  const col = SORTABLE[f.sort];
-  const dir = f.dir === "asc" ? "ASC" : "DESC";
   return rows<Row>(
     db.prepare(
       `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
-       ORDER BY (${col} IS NULL) ASC, ${col} ${dir}, id DESC`,
+       ORDER BY ${orderBy(f)}`,
     ),
     ...params,
   ).map(toAssessment);
@@ -574,5 +579,5 @@ export function quickSearch(q: string, limit = 6): Assessment[] {
 const EMPTY_FILTERS: Filters = {
   q: "", surveyStatus: [], completionStatus: [], anyStatus: [], location: [],
   surveyFrom: "", surveyTo: "", completionFrom: "", completionTo: "",
-  flags: [], origin: "", sort: "updatedAt", dir: "desc", page: 1, perPage: 50,
+  flags: [], origin: "", sorts: DEFAULT_SORTS, page: 1, perPage: 10,
 };

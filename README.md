@@ -42,8 +42,11 @@ that without adding authentication first.
 - A left rail of **saved views** — All records, Overdue, Awaiting completion, Data
   issues, No survey date — each carrying an absolute count, plus the busiest
   locations. The view you are standing in is the page title.
-- **⌘K command palette**: search records, jump to a view, apply a filter, or run
-  an action. Record lookup hits the server; everything else matches locally.
+- A **keyword box** in the list header, beside Add filter. Typing narrows the
+  list in place; `/` jumps to it from anywhere.
+- **⌘K command palette** as the separate, optional thing: jump to a view, a
+  record or an action rather than filter. Record lookup hits the server;
+  everything else matches locally.
 - Filters that are not a saved view appear as removable chips under the title.
   Adding one on top of a view stops the rail claiming you are still in it.
 
@@ -57,12 +60,17 @@ that without adding authentication first.
   completion status, "any status column is X", location, date ranges, origin
 - Flags: overdue, awaiting completion, data issues, missing completion date,
   no survey date
-- Sortable columns, adjustable page size, multi-select with bulk status change and
-  bulk delete
+- **Multi-level sort**: order by one field, break ties with up to three more.
+  Click a column header to sort by it, shift-click to add it as a tie-breaker,
+  or build the whole thing in the Sort menu.
+- 10 rows per page by default, adjustable; multi-select with bulk status change
+  and bulk delete
 - Every filter lives in the URL, so any view is bookmarkable and shareable
 - Export the current filtered view to CSV
 
 **Add records** (`/assessments/new`)
+- Opens as a **modal** over the list when reached from inside the app, and as a
+  full page when the URL is opened directly — one route, two presentations
 - Single-record form with validation
 - Paste-multiple box for tab- or comma-separated rows; rows that fail validation
   are listed and left unsaved rather than guessed at
@@ -115,6 +123,10 @@ that without adding authentication first.
   User-defined saved views would be the natural next step.
 - The rail's counts are deliberately **not** scoped by the current filters — a
   view's number has to mean the same thing wherever you are standing.
+- The **keyword box and the palette are different tools**, so the keyword is
+  deliberately not repeated as a filter chip, and "Clear" leaves it alone.
+- Sort state is one URL parameter (`sort=location:asc,name:asc`). Unknown
+  fields and duplicate levels are dropped rather than failing the request.
 
 ### Not built yet
 
@@ -150,6 +162,7 @@ src/lib/queries.ts     filtering, CRUD, facets, analytics aggregates
 src/lib/filters.ts     URL <-> filter state
 src/lib/views.ts       saved views, active-view matching, page headings
 src/app/actions.ts     server actions (save, delete, bulk status, paste)
-src/components/        rail, command palette, filter chips, table, form, charts
+src/components/        rail, palette, search, sort, filter chips, table, charts
+src/app/@modal/        the intercepted route that makes "new record" a modal
 scripts/               seed, backup, check
 ```

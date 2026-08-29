@@ -72,8 +72,25 @@ ok("status facet filters", listAssessments(f({ completionStatus: "On Hold" })).i
 ok("bogus status value ignored", listAssessments(f({ completionStatus: "Nonsense" })).total > 1);
 ok("date range filters", listAssessments(f({ surveyFrom: "2026-06-01", surveyTo: "2026-06-01" })).items.some((r) => r.id === id));
 ok("origin filter", listAssessments(f({ origin: "manual" })).items.every((r) => r.origin === "manual"));
-ok("sort whitelist falls back", parseFilters({ sort: "; DROP TABLE" }).sort === "updatedAt");
-ok("perPage clamped to options", parseFilters({ perPage: "99999" }).perPage === 50);
+ok("sort whitelist falls back", parseFilters({ sort: "; DROP TABLE" }).sorts[0].key === "updatedAt");
+ok("multi-level sort parses in order", (() => {
+  const s2 = parseFilters({ sort: "location:asc,surveyDate:desc" }).sorts;
+  return s2.length === 2 && s2[0].key === "location" && s2[0].dir === "asc" && s2[1].key === "surveyDate";
+})());
+ok("duplicate sort levels are dropped", parseFilters({ sort: "name:asc,name:desc" }).sorts.length === 1);
+ok("sort levels are capped", parseFilters({ sort: "name:asc,location:asc,assessor:asc,surveyDate:asc,updatedAt:asc" }).sorts.length === 4);
+ok("multi-level sort actually orders", (() => {
+  const items = listAssessments(f({ sort: "location:asc,name:asc", perPage: "100" })).items;
+  for (let i = 1; i < items.length; i++) {
+    const a = items[i - 1], b = items[i];
+    if (a.location === null || b.location === null) continue;
+    if (a.location > b.location) return false;
+    if (a.location === b.location && a.name > b.name) return false;
+  }
+  return true;
+})());
+ok("default page size is 10", parseFilters({}).perPage === 10);
+ok("perPage clamped to options", parseFilters({ perPage: "99999" }).perPage === 10);
 
 const paged = listAssessments(f({ perPage: "25", page: "2" }));
 ok("pagination page 2", paged.page === 2 && paged.items.length <= 25);
