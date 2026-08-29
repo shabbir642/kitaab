@@ -85,7 +85,7 @@ async function findTarget() {
 
 /* ---------- run ---------- */
 
-const profile = mkdtempSync(join(tmpdir(), "fdk-cdp-"));
+const profile = mkdtempSync(join(tmpdir(), "kitaab-cdp-"));
 const chrome = spawn(
   CHROME,
   [

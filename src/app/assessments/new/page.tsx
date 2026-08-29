@@ -5,6 +5,8 @@ import { RecordForm } from "@/components/RecordForm";
 import { allAssessors, allLocations } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
+export const metadata = { title: "Add records" };
+
 export const dynamic = "force-dynamic";
 
 export default async function NewRecordPage({

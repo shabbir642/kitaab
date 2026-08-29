@@ -6,7 +6,7 @@ import { Monitor, Moon, Sun } from "lucide-react";
 type Mode = "light" | "dark" | "system";
 const ORDER: Mode[] = ["system", "light", "dark"];
 const ICON = { system: Monitor, light: Sun, dark: Moon };
-const KEY = "fdk-theme";
+const KEY = "kitaab-theme";
 
 /* The stored theme is external state, so it is read through
    useSyncExternalStore rather than mirrored into an effect. */

@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { db, DB_PATH } from "../src/lib/db.ts";
 
-const dir = process.env.FDK_BACKUP_DIR ?? path.join(process.cwd(), "backups");
+const dir = process.env.KITAAB_BACKUP_DIR ?? path.join(process.cwd(), "backups");
 fs.mkdirSync(dir, { recursive: true });
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

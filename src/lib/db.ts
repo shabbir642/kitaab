@@ -11,7 +11,7 @@ import path from "node:path";
 --------------------------------------------------------------------------- */
 
 export const DB_PATH =
-  process.env.FDK_DB_PATH ?? path.join(process.cwd(), "data", "app.db");
+  process.env.KITAAB_DB_PATH ?? path.join(process.cwd(), "data", "app.db");
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assessments (
@@ -80,10 +80,10 @@ function open(): DatabaseSync {
 }
 
 // Survive dev-server hot reloads without leaking connections.
-const globalForDb = globalThis as unknown as { __fdkDb?: DatabaseSync };
+const globalForDb = globalThis as unknown as { __kitaabDb?: DatabaseSync };
 
-export const db: DatabaseSync = globalForDb.__fdkDb ?? open();
-if (process.env.NODE_ENV !== "production") globalForDb.__fdkDb = db;
+export const db: DatabaseSync = globalForDb.__kitaabDb ?? open();
+if (process.env.NODE_ENV !== "production") globalForDb.__kitaabDb = db;
 
 /** node:sqlite returns null-prototype objects; spread them so React/JSON and
  *  property access behave normally. */

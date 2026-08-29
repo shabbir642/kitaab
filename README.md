@@ -1,4 +1,6 @@
-# Assessment Dashboard
+# Kitaab
+
+*Kitaab* — the book you keep the records in.
 
 A local dashboard for survey assessment records: create, edit and delete records,
 scan them in a dense filterable list, and see the numbers behind them.
@@ -90,6 +92,8 @@ that without adding authentication first.
   never disagree about what they mean.
 - **Data-quality problems are warnings, not errors.** A contradictory record still
   saves and gets flagged; blocking the save is how people stop using a tool.
+- Paths are overridable with `KITAAB_DB_PATH` and `KITAAB_BACKUP_DIR`, which is
+  how `pnpm check` runs against a scratch database instead of your real one.
 - `extras` is a JSON column carrying columns the app doesn't model yet. It exists
   so a future spreadsheet import doesn't have to drop anything.
 

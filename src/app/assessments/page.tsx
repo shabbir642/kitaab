@@ -13,6 +13,8 @@ import {
 import { OVERDUE_DAYS, warningsFor } from "@/lib/schema";
 import { daysBetween, todayIso } from "@/lib/utils";
 
+export const metadata = { title: "Records" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AssessmentsPage({

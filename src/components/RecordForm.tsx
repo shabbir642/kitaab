@@ -61,11 +61,11 @@ export function RecordForm({
         <Field label="Location" error={err.location}>
           <input
             name="location"
-            list="fdk-locations"
+            list="kitaab-locations"
             defaultValue={record?.location ?? ""}
             className={inputCls(!!err.location)}
           />
-          <datalist id="fdk-locations">
+          <datalist id="kitaab-locations">
             {locations.map((l) => (
               <option key={l} value={l} />
             ))}
@@ -74,11 +74,11 @@ export function RecordForm({
         <Field label="Assessor" error={err.assessor}>
           <input
             name="assessor"
-            list="fdk-assessors"
+            list="kitaab-assessors"
             defaultValue={record?.assessor ?? ""}
             className={inputCls(!!err.assessor)}
           />
-          <datalist id="fdk-assessors">
+          <datalist id="kitaab-assessors">
             {assessors.map((a) => (
               <option key={a} value={a} />
             ))}

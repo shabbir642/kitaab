@@ -18,6 +18,8 @@ import {
 } from "@/lib/queries";
 import { formatMonth, pct } from "@/lib/utils";
 
+export const metadata = { title: "Analytics" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage({

@@ -10,6 +10,12 @@ import { daysBetween, formatDate, formatDateTime, todayIso } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const record = Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null;
+  return { title: record ? record.assessmentId : "Record" };
+}
+
 export default async function RecordPage({
   params,
   searchParams,

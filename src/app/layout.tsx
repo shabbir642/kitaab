@@ -8,8 +8,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Assessment Dashboard",
-  description: "Track, filter and analyse survey assessment records.",
+  title: { default: "Kitaab", template: "%s · Kitaab" },
+  description: "The book of assessment records - track, filter and analyse them.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

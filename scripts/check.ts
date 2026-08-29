@@ -1,5 +1,5 @@
 /** Ad-hoc verification of the validation + query layers against a scratch DB.
- *  Run with: FDK_DB_PATH=/tmp/check.db node scripts/check.ts */
+ *  Run with: KITAAB_DB_PATH=/tmp/check.db node scripts/check.ts */
 import { assessmentInput, warningsFor } from "../src/lib/schema.ts";
 import { parseFilters } from "../src/lib/filters.ts";
 import {

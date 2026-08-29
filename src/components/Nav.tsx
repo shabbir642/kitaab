@@ -12,9 +12,9 @@ export function Nav() {
             className="grid size-6 place-items-center rounded-md text-[11px] font-bold text-accent-ink"
             style={{ background: "var(--accent)" }}
           >
-            A
+            K
           </span>
-          Assessments
+          Kitaab
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <NavLink href="/assessments">Records</NavLink>

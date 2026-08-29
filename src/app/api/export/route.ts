@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   return new NextResponse("﻿" + lines.join("\r\n") + "\r\n", {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="assessments-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="kitaab-assessments-${stamp}.csv"`,
       "Cache-Control": "no-store",
     },
   });
