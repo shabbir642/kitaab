@@ -581,3 +581,94 @@ const EMPTY_FILTERS: Filters = {
   surveyFrom: "", surveyTo: "", completionFrom: "", completionTo: "",
   flags: [], origin: "", sorts: DEFAULT_SORTS, page: 1, perPage: 10,
 };
+
+/* ---------------------------------------------------------------------------
+   Notes
+
+   A record's running commentary. Kept separate from `remarks` on purpose:
+   remarks is one field that came from the spreadsheet and gets overwritten,
+   notes accumulate and are dated.
+--------------------------------------------------------------------------- */
+
+export type Note = {
+  id: number;
+  assessmentId: number;
+  body: string;
+  createdAt: string;
+};
+
+export function listNotes(assessmentId: number): Note[] {
+  return rows<{ id: number; assessment_id: number; body: string; created_at: string }>(
+    db.prepare(
+      `SELECT id, assessment_id, body, created_at FROM notes
+       WHERE assessment_id = ? AND deleted_at IS NULL
+       ORDER BY created_at DESC, id DESC`,
+    ),
+    assessmentId,
+  ).map((r) => ({
+    id: r.id,
+    assessmentId: r.assessment_id,
+    body: r.body,
+    createdAt: r.created_at,
+  }));
+}
+
+export function addNote(assessmentId: number, body: string): number {
+  const info = db
+    .prepare(`INSERT INTO notes (assessment_id, body, created_at) VALUES (?, ?, ?)`)
+    .run(assessmentId, body, new Date().toISOString());
+  return Number(info.lastInsertRowid);
+}
+
+export function deleteNote(noteId: number, assessmentId: number): number {
+  const info = db
+    .prepare(
+      `UPDATE notes SET deleted_at = ?
+       WHERE id = ? AND assessment_id = ? AND deleted_at IS NULL`,
+    )
+    .run(new Date().toISOString(), noteId, assessmentId);
+  return Number(info.changes);
+}
+
+/* ---------------------------------------------------------------------------
+   Single-field and custom-field edits
+
+   The core fields go through the full form; everything else is edited one
+   field at a time, so a typo in a note never blocks fixing a date.
+--------------------------------------------------------------------------- */
+
+/** Columns editable one at a time, outside the main form. */
+export const INLINE_FIELDS = { remarks: "remarks" } as const;
+export type InlineField = keyof typeof INLINE_FIELDS;
+
+export function updateInlineField(id: number, field: InlineField, value: string | null): void {
+  db.prepare(
+    `UPDATE assessments SET ${INLINE_FIELDS[field]} = ?, updated_at = ?
+     WHERE id = ? AND deleted_at IS NULL`,
+  ).run(value, new Date().toISOString(), id);
+}
+
+/** Custom fields live in the `extras` JSON blob - the room a record has to
+ *  carry information this app never modelled. */
+export function setExtra(id: number, key: string, value: string): void {
+  const current = getAssessment(id);
+  if (!current) return;
+  const next = { ...current.extras, [key]: value };
+  db.prepare(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`).run(
+    JSON.stringify(next),
+    new Date().toISOString(),
+    id,
+  );
+}
+
+export function removeExtra(id: number, key: string): void {
+  const current = getAssessment(id);
+  if (!current) return;
+  const next = { ...current.extras };
+  delete next[key];
+  db.prepare(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`).run(
+    JSON.stringify(next),
+    new Date().toISOString(),
+    id,
+  );
+}

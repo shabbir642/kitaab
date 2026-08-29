@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { saveRecord, type FormState } from "@/app/actions";
 import { COMPLETION_STATUSES, SURVEY_STATUSES, type Assessment } from "@/lib/schema";
@@ -13,13 +14,23 @@ export function RecordForm({
   record,
   locations,
   assessors,
+  closeOnSave = false,
 }: {
   record?: Assessment;
   locations: string[];
   assessors: string[];
+  /** in a modal, a successful save should put you back where you were */
+  closeOnSave?: boolean;
 }) {
+  const router = useRouter();
   const [state, action] = useActionState(saveRecord.bind(null, record?.id ?? null), EMPTY);
   const err = state.fieldErrors ?? {};
+
+  useEffect(() => {
+    if (!closeOnSave || !state.ok) return;
+    router.refresh();
+    router.back();
+  }, [state, closeOnSave, router]);
 
   return (
     <form action={action} className="space-y-5">

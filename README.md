@@ -76,8 +76,18 @@ that without adding authentication first.
   are listed and left unsaved rather than guessed at
 
 **Record page** (`/assessments/[id]`)
-- Edit in place, plus derived values (days since survey, turnaround, overdue),
-  data-quality warnings and provenance
+- The fields that are also on the list sit in a two-line strip at the top — the
+  phase track, then location, assessor, days since survey, turnaround, last
+  updated — and then get out of the way.
+- Everything below is the room the list does not have: **notes**, remarks, and
+  **custom fields**.
+- Two editing modes, on purpose:
+  - **Edit** opens the core record fields together, in a modal over the record
+    (`/assessments/[id]/edit`, a full page if opened directly).
+  - Everything else is edited **one field at a time**, in place, so fixing a
+    note never means opening a form full of dates.
+- Sidebar carries what needs attention (overdue, data-quality warnings) and
+  provenance.
 
 **Analytics** (`/analytics`)
 - Scoped by the same view and filters as the list
@@ -115,8 +125,16 @@ that without adding authentication first.
   saves and gets flagged; blocking the save is how people stop using a tool.
 - Paths are overridable with `KITAAB_DB_PATH` and `KITAAB_BACKUP_DIR`, which is
   how `pnpm check` runs against a scratch database instead of your real one.
-- `extras` is a JSON column carrying columns the app doesn't model yet. It exists
-  so a future spreadsheet import doesn't have to drop anything.
+- `extras` is a JSON column carrying columns the app doesn't model yet. It backs
+  the record page's custom fields, and it is where a future spreadsheet import
+  will put the columns it doesn't recognise — so hand-added and imported extras
+  land in the same place.
+- **Notes are not `remarks`.** Remarks is one overwritable field that came from
+  the spreadsheet; notes accumulate, are dated, and are soft-deleted like
+  everything else. Deleting one requires naming the record it belongs to.
+- Timestamps are formatted by hand rather than with `toLocaleTimeString`, which
+  renders differently under Node and the browser and is therefore a hydration
+  mismatch on any server-rendered time.
 - **Saved views are code, not data** (`src/lib/views.ts`). A view is a query
   string plus a count; "which view am I in" is decided by comparing filter
   signatures, so a view and the filters that reproduce it can never drift apart.
@@ -162,7 +180,7 @@ src/lib/queries.ts     filtering, CRUD, facets, analytics aggregates
 src/lib/filters.ts     URL <-> filter state
 src/lib/views.ts       saved views, active-view matching, page headings
 src/app/actions.ts     server actions (save, delete, bulk status, paste)
-src/components/        rail, palette, search, sort, filter chips, table, charts
+src/components/        rail, palette, search, sort, chips, table, notes, charts
 src/app/@modal/        the intercepted route that makes "new record" a modal
 scripts/               seed, backup, check
 ```

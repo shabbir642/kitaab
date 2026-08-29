@@ -41,14 +41,18 @@ export function formatMonth(ym: string): string {
   return `${MONTHS[Number(m) - 1]} ${y.slice(2)}`;
 }
 
+/** Local time, formatted by hand. `toLocaleTimeString` renders differently
+ *  under Node and the browser, which makes it a hydration mismatch on any
+ *  server-rendered timestamp. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return `${formatDate(d.toISOString().slice(0, 10))}, ${d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
 }
 
 export function daysBetween(fromIso: string, toIso: string): number {

@@ -10,11 +10,18 @@ import {
   SURVEY_STATUSES,
 } from "@/lib/schema";
 import {
+  addNote,
   assessmentIdExists,
   bulkSetStatus,
   createAssessment,
   deleteAssessments,
+  deleteNote,
+  INLINE_FIELDS,
+  removeExtra,
+  setExtra,
   updateAssessment,
+  updateInlineField,
+  type InlineField,
 } from "@/lib/queries";
 import { PASTE_COLUMNS } from "@/lib/paste";
 
@@ -181,4 +188,78 @@ export async function pasteRecordsAction(
         ? `Added ${created} record${created === 1 ? "" : "s"}.`
         : `Added ${created}, skipped ${rejected.length}.`,
   };
+}
+
+/* ---------------------------------------------------------------------------
+   Detail-view edits
+
+   Everything here touches one thing at a time, so a half-finished note or a
+   bad custom field can never block correcting a date.
+--------------------------------------------------------------------------- */
+
+function recordId(fd: FormData): number | null {
+  const n = Number(fd.get("assessmentId"));
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function revalidateRecord(id: number) {
+  revalidatePath(`/assessments/${id}`);
+  revalidatePath("/assessments");
+}
+
+export async function addNoteAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const id = recordId(fd);
+  const body = String(fd.get("body") ?? "").trim();
+  if (id == null) return { ok: false, message: "Unknown record." };
+  if (!body) return { ok: false, message: "Write something first." };
+  if (body.length > 8000) return { ok: false, message: "That note is too long (8000 characters max)." };
+
+  addNote(id, body);
+  revalidateRecord(id);
+  return { ok: true };
+}
+
+export async function deleteNoteAction(fd: FormData): Promise<void> {
+  const id = recordId(fd);
+  const noteId = Number(fd.get("noteId"));
+  if (id == null || !Number.isInteger(noteId)) return;
+  deleteNote(noteId, id);
+  revalidateRecord(id);
+}
+
+export async function updateFieldAction(
+  id: number,
+  field: InlineField,
+  value: string,
+): Promise<FormState> {
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
+  if (!(field in INLINE_FIELDS)) return { ok: false, message: "Unknown field." };
+  const trimmed = value.trim();
+  updateInlineField(id, field, trimmed === "" ? null : trimmed);
+  revalidateRecord(id);
+  return { ok: true };
+}
+
+export async function setExtraAction(
+  id: number,
+  key: string,
+  value: string,
+): Promise<FormState> {
+  const name = key.trim();
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
+  if (!name) return { ok: false, message: "Give the field a name." };
+  if (name.length > 64) return { ok: false, message: "Field name is too long (64 characters max)." };
+  if (value.length > 2000) return { ok: false, message: "Value is too long (2000 characters max)." };
+
+  setExtra(id, name, value.trim());
+  revalidateRecord(id);
+  return { ok: true };
+}
+
+export async function removeExtraAction(fd: FormData): Promise<void> {
+  const id = recordId(fd);
+  const key = String(fd.get("key") ?? "");
+  if (id == null || !key) return;
+  removeExtra(id, key);
+  revalidateRecord(id);
 }

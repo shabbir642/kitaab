@@ -87,3 +87,85 @@ function Node({ tone, done }: { tone: Tone; done: boolean }) {
     />
   );
 }
+
+/** The roomy version, for the detail view: the same two nodes with labels and
+ *  dates spelled out. */
+export function PhaseTrack({
+  surveyStatus,
+  surveyDate,
+  completionStatus,
+  completionDate,
+  overdueDays,
+}: {
+  surveyStatus: string | null;
+  surveyDate: string | null;
+  completionStatus: string | null;
+  completionDate: string | null;
+  overdueDays: number | null;
+}) {
+  const surveyDone = surveyStatus === "Completed";
+  const completionDone = completionStatus === "Completed";
+  const aTone: Tone = surveyStatus ? toneFor(surveyStatus) : "neutral";
+  const bTone: Tone = completionStatus ? toneFor(completionStatus) : "neutral";
+
+  const link =
+    overdueDays != null ? TONE_VAR.critical
+    : completionDone ? TONE_VAR.good
+    : surveyDone ? TONE_VAR[bTone]
+    : "var(--grid)";
+
+  return (
+    // capped, so the connector reads as a step between two stops rather than a
+    // hairline stretched across an empty card
+    <div className="flex max-w-xl items-center">
+      <Stop
+        tone={aTone}
+        done={surveyDone}
+        label="Survey"
+        status={surveyStatus ?? "Not set"}
+        date={surveyDate}
+      />
+      <span className="mx-3 h-0.5 min-w-10 flex-1" style={{ background: link }} aria-hidden />
+      <Stop
+        tone={bTone}
+        done={completionDone}
+        label="Completion"
+        status={completionStatus ?? "Not set"}
+        date={completionDate}
+        note={overdueDays != null ? `${overdueDays} days open` : undefined}
+      />
+    </div>
+  );
+}
+
+function Stop({
+  tone,
+  done,
+  label,
+  status,
+  date,
+  note,
+}: {
+  tone: Tone;
+  done: boolean;
+  label: string;
+  status: string;
+  date: string | null;
+  note?: string;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2.5">
+      <Node tone={tone} done={done} />
+      <div className="leading-tight">
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+          {label}
+        </span>
+        <span className="block text-xs font-medium">{status}</span>
+        <span className="block text-[11px] tabular-nums text-ink-muted">
+          {date ? formatDate(date) : "no date"}
+          {note && <span style={{ color: "var(--status-critical)" }}> · {note}</span>}
+        </span>
+      </div>
+    </div>
+  );
+}

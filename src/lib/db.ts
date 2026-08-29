@@ -44,6 +44,19 @@ CREATE INDEX IF NOT EXISTS idx_assessments_comp_status     ON assessments (compl
 CREATE INDEX IF NOT EXISTS idx_assessments_location        ON assessments (location);
 CREATE INDEX IF NOT EXISTS idx_assessments_deleted         ON assessments (deleted_at);
 
+-- Notes are the record's running commentary: append-only in spirit, soft
+-- deleted like everything else, and always read newest first.
+CREATE TABLE IF NOT EXISTS notes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  assessment_id INTEGER NOT NULL REFERENCES assessments(id),
+  body          TEXT    NOT NULL,
+  created_at    TEXT    NOT NULL,
+  deleted_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_assessment
+  ON notes (assessment_id, created_at DESC);
+
 -- Keyword search. External-content FTS5 index: no duplicated storage, kept in
 -- sync by the triggers below.
 CREATE VIRTUAL TABLE IF NOT EXISTS assessments_fts USING fts5(

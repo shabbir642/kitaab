@@ -169,10 +169,12 @@ try {
       })()`,
     );
 
+  // Links and <summary> triggers are clickable too - matching only <button>
+  // once clicked an inline "Edit" instead of the header's Edit link.
   const clickText = (label) =>
     evaluate(
       `(() => {
-        const b = [...document.querySelectorAll('button')]
+        const b = [...document.querySelectorAll('button,a,summary')]
           .find((x) => x.textContent.trim() === ${JSON.stringify(label)});
         if (!b) return false;
         b.click();
@@ -209,7 +211,10 @@ try {
   ok("redirected to the new record", recordId > 0, created);
   const detail = await text();
   ok("record page shows what was saved", detail.includes(`${TAG}/A`) && detail.includes("E2E created record"));
-  ok("derived turnaround computed", /Turnaround\s*\n?\s*14 d/.test(detail), detail.match(/Turnaround[^\n]*\n?[^\n]*/)?.[0]);
+  ok("derived turnaround computed", /TURNAROUND[\s\S]{0,24}14 days/i.test(detail),
+     detail.match(/TURNAROUND[\s\S]{0,30}/i)?.[0]);
+  ok("priority fields are a strip, not a form", /LOCATION[\s\S]{0,240}LAST UPDATED/i.test(detail));
+  ok("record has a notes section", /Notes/.test(detail));
 
   /* ---- duplicate ID is refused ---- */
   await goto("/assessments/new");
@@ -240,12 +245,18 @@ try {
   await goto(`/assessments?q=${encodeURIComponent(TAG)}`);
   ok("search finds the new record", (await text()).includes(`${TAG}/A`));
 
-  /* ---- edit ---- */
+  /* ---- edit, now behind a modal over the record ---- */
   await goto(`/assessments/${recordId}`);
+  ok("edit button found", await clickText("Edit"));
+  await waitFor("edit modal opens", async () =>
+    (await evaluate(`!!document.querySelector('[role="dialog"][aria-label="Edit record"]')`)) ? true : null,
+  );
   await set("name", "E2E edited record");
   await set("completionStatus", "On Hold");
   ok("save button found", await clickText("Save changes"));
-  await waitFor("save confirmation", async () => (/Saved\./.test(await text()) ? true : null));
+  await waitFor("modal closes after saving", async () =>
+    (await evaluate(`!!document.querySelector('[role="dialog"][aria-label="Edit record"]')`)) ? null : true,
+  );
   await goto(`/assessments/${recordId}`);
   const edited = await text();
   ok("edit persisted", edited.includes("E2E edited record") && edited.includes("On Hold"));

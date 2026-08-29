@@ -8,13 +8,18 @@ import {
   assessmentIdExists, byLocation, createAssessment, deleteAssessments,
   facetCounts, flagCounts, getAssessment, listAssessments, monthlyActivity,
   statusBreakdown, summary, updateAssessment,
+  addNote, deleteNote, listNotes, removeExtra, setExtra, updateInlineField,
 } from "../src/lib/queries.ts";
 import { db } from "../src/lib/db.ts";
 
 // Leave no trace, and tolerate a scratch database that a previous run died
 // halfway through: the fixture ID is cleared before and after.
-const clearFixture = () =>
+const clearFixture = () => {
+  db.prepare(
+    "DELETE FROM notes WHERE assessment_id IN (SELECT id FROM assessments WHERE assessment_id = 'CHK-001')",
+  ).run();
   db.prepare("DELETE FROM assessments WHERE assessment_id = 'CHK-001'").run();
+};
 clearFixture();
 
 let fails = 0;
@@ -133,6 +138,41 @@ ok("monthly axis is 12 contiguous months", ma.length === 12 && ma.every((m) => /
 const bl = byLocation(f({}), 3);
 ok("byLocation folds tail into Other", bl.length <= 4 && bl.some((r) => r.location.startsWith("Other")), bl.map((r) => r.location));
 ok("filtered analytics narrows", summary(f({ location: "Testville" })).total < s.total);
+
+/* ---- notes ---- */
+ok("no notes to start", listNotes(id).length === 0);
+const n1 = addNote(id, "first note");
+const n2 = addNote(id, "second note");
+ok("notes added", listNotes(id).length === 2);
+ok("newest note first", listNotes(id)[0].id === n2);
+ok("note carries its record", listNotes(id).every((n) => n.assessmentId === id));
+ok("note soft delete removes it from reads", deleteNote(n1, id) === 1 && listNotes(id).length === 1);
+ok("a note cannot be deleted through the wrong record", deleteNote(n2, id + 99999) === 0);
+ok("notes belong to one record only", listNotes(id + 99999).length === 0);
+
+/* ---- single-field and custom-field edits ---- */
+updateInlineField(id, "remarks", "edited in place");
+ok("inline field edit persists", getAssessment(id)!.remarks === "edited in place");
+updateInlineField(id, "remarks", null);
+ok("inline field clears to null", getAssessment(id)!.remarks === null);
+
+setExtra(id, "Batch", "B-12");
+setExtra(id, "Vendor", "Acme");
+ok("custom fields stored", getAssessment(id)!.extras.Batch === "B-12" && getAssessment(id)!.extras.Vendor === "Acme");
+setExtra(id, "Batch", "B-13");
+ok("custom field overwritten, not duplicated", (() => {
+  const e = getAssessment(id)!.extras;
+  return e.Batch === "B-13" && Object.keys(e).length === 2;
+})());
+removeExtra(id, "Batch");
+ok("custom field removed leaves the others", (() => {
+  const e = getAssessment(id)!.extras;
+  return e.Batch === undefined && e.Vendor === "Acme";
+})());
+ok("extras survive a core-field save", (() => {
+  updateAssessment(id, assessmentInput.parse({ ...input, name: "Renamed again" }));
+  return getAssessment(id)!.extras.Vendor === "Acme";
+})());
 
 /* ---- delete ---- */
 ok("soft delete", deleteAssessments([id]) === 1);
