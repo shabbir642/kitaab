@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    a { color: #3987e5; text-decoration: none; } a:hover { color: #6aa6ee; }
+    .mono { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #0d0d0d; color: #ffffff; overflow: hidden">
+
+  <!-- top bar -->
+  <div style="display: flex; align-items: center; gap: 16px; height: 50px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid rgba(255,255,255,0.1)">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #3987e5; color: #0d0d0d; font-size: 11px; font-weight: 700">K</span>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: -0.01em">Kitaab</span>
+    </div>
+    <div style="display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #1a1a19">
+      <span style="padding: 4px 10px; border-radius: 5px; background: #232322; font-size: 12px; font-weight: 500">Records</span>
+      <span style="padding: 4px 10px; border-radius: 5px; font-size: 12px; color: #898781">Analytics</span>
+    </div>
+    <div style="flex-grow: 1; max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 7px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.1); color: #898781; font-size: 12px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span style="flex-grow: 1">Search records, jump to a view, run an action</span>
+      <span class="mono" style="font-size: 10px; padding: 1px 4px; border-radius: 3px; background: #232322; color: #c3c2b7">&#8984;K</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px">
+      <div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 6px; background: #3987e5; color: #0d0d0d; font-size: 12px; font-weight: 600">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New
+      </div>
+      <div style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+
+    <!-- ============ LIST PANE ============ -->
+    <div style="width: 472px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.1); min-height: 0">
+
+      <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px 10px">
+        <span style="font-size: 14px; font-weight: 600; letter-spacing: -0.01em">Overdue</span>
+        <span class="num" style="font-size: 12px; color: #898781">86</span>
+        <span style="margin-left: auto; display: flex; gap: 6px">
+          <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          </span>
+          <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h12M3 18h6"/></svg>
+          </span>
+        </span>
+      </div>
+
+      <div style="display: flex; gap: 6px; padding: 0 16px 10px">
+        <span style="display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 5px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.18); font-size: 11.5px">
+          Mumbai, Kochi
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#898781" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </span>
+        <span style="display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 5px; border: 1px dashed rgba(255,255,255,0.18); font-size: 11.5px; color: #898781">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Filter
+        </span>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; border-top: 1px solid rgba(255,255,255,0.1)">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+          <div style="display: flex; gap: 11px; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); background: {{r.bg}}; border-left: 2px solid {{r.marker}}">
+            <div style="flex-grow: 1; min-width: 0">
+              <div style="display: flex; align-items: baseline; gap: 8px">
+                <span class="mono" style="font-size: 10.5px; font-weight: 500; color: {{r.idTone}}">{{r.id}}</span>
+                <span style="font-size: 10.5px; color: #898781">{{r.location}}</span>
+              </div>
+              <div style="margin-top: 3px; font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.name}}</div>
+              <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px">
+                <span style="display: flex; align-items: center">
+                  <span style="width: 8px; height: 8px; border-radius: 999px; background: #0ca30c"></span>
+                  <span style="width: 18px; height: 1.5px; background: #383835"></span>
+                  <span style="width: 8px; height: 8px; border-radius: 999px; border: 1.5px solid {{r.tone}}; box-sizing: border-box"></span>
+                </span>
+                <span class="num" style="font-size: 10.5px; color: #898781">{{r.surveyed}} &rarr; {{r.stage}}</span>
+              </div>
+            </div>
+            <div class="num" style="flex-shrink: 0; align-self: center; font-size: 11.5px; font-weight: 500; color: {{r.ageTone}}">{{r.age}}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ DETAIL PEEK ============ -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0; background: #131312">
+
+      <div style="display: flex; align-items: flex-start; gap: 14px; padding: 16px 22px 14px; border-bottom: 1px solid rgba(255,255,255,0.1)">
+        <div style="min-width: 0">
+          <div class="mono" style="font-size: 11px; color: #898781">CRS-2026-0265</div>
+          <h2 style="margin: 4px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em">Campus Readiness Survey &ndash; Mumbai 7</h2>
+          <div style="margin-top: 8px; display: flex; gap: 6px">
+            <span style="display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); font-size: 11px">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#d03b3b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+              Overdue 289d
+            </span>
+            <span style="display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); font-size: 11px; color: #c3c2b7">Mumbai</span>
+          </div>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 6px">
+          <span style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </span>
+          <span style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; padding: 18px 22px; display: flex; flex-direction: column; gap: 18px">
+
+        <!-- pipeline -->
+        <div>
+          <div style="font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #898781">Progress</div>
+          <div style="margin-top: 12px; display: flex; align-items: flex-start">
+            <div style="display: flex; flex-direction: column; gap: 7px; align-items: center; width: 132px">
+              <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; background: #0ca30c">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0d0d0d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </span>
+              <span style="font-size: 12px; font-weight: 500">Survey</span>
+              <span class="num" style="font-size: 11px; color: #898781">12 Nov 2025</span>
+            </div>
+            <span style="flex-grow: 1; height: 2px; margin-top: 12px; background: linear-gradient(90deg, #0ca30c, #fab219)"></span>
+            <div style="display: flex; flex-direction: column; gap: 7px; align-items: center; width: 132px">
+              <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; border: 2px solid #fab219; box-sizing: border-box">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fab219" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </span>
+              <span style="font-size: 12px; font-weight: 500">Completion</span>
+              <span style="font-size: 11px; color: #fab219">In Review</span>
+            </div>
+            <span style="flex-grow: 1; height: 2px; margin-top: 12px; background: #2c2c2a"></span>
+            <div style="display: flex; flex-direction: column; gap: 7px; align-items: center; width: 132px">
+              <span style="width: 26px; height: 26px; border-radius: 999px; border: 2px dashed #383835; box-sizing: border-box"></span>
+              <span style="font-size: 12px; color: #898781">Closed</span>
+              <span style="font-size: 11px; color: #898781">&mdash;</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- fields -->
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden">
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Assessor</div><div style="margin-top: 3px; font-size: 12.5px">Unassigned</div></div>
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Survey status</div><div style="margin-top: 3px; font-size: 12.5px">Completed</div></div>
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Completion date</div><div style="margin-top: 3px; font-size: 12.5px; color: #898781">Not set</div></div>
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Days since survey</div><div class="num" style="margin-top: 3px; font-size: 12.5px">289</div></div>
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Turnaround</div><div style="margin-top: 3px; font-size: 12.5px; color: #898781">&mdash;</div></div>
+          <div style="padding: 11px 13px; background: #1a1a19"><div style="font-size: 10.5px; color: #898781">Origin</div><div style="margin-top: 3px; font-size: 12.5px">import</div></div>
+        </div>
+
+        <!-- remarks -->
+        <div>
+          <div style="font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #898781">Remarks</div>
+          <div style="margin-top: 8px; padding: 11px 13px; border-radius: 8px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; line-height: 1.55; color: #c3c2b7">Site access delayed by monsoon. Coordinator to confirm a revised window once the campus reopens.</div>
+        </div>
+
+        <div style="margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.1)">
+          <span style="display: flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; background: #3987e5; color: #0d0d0d; font-size: 12px; font-weight: 600">Mark completion done</span>
+          <span style="display: flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: #c3c2b7">Assign</span>
+          <span class="num" style="margin-left: auto; font-size: 11px; color: #898781">2 of 86</span>
+          <span style="display: flex; gap: 4px">
+            <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span>
+            <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const plain = { bg: 'transparent', marker: 'transparent', idTone: '#c3c2b7' };
+    return {
+      rows: [
+        { ...plain, id: 'WQB-2026-0325', name: 'Water Quality Baseline - Mumbai 3', location: 'Mumbai', surveyed: '17 Oct', stage: 'Not started', tone: '#ec835a', age: '315d', ageTone: '#d03b3b' },
+        { id: 'CRS-2026-0265', name: 'Campus Readiness Survey - Mumbai 7', location: 'Mumbai', surveyed: '12 Nov', stage: 'In review', tone: '#fab219', age: '289d', ageTone: '#d03b3b', bg: 'rgba(57,135,229,0.16)', marker: '#3987e5', idTone: '#ffffff' },
+        { ...plain, id: 'VCC-2026-0117', name: 'Vendor Compliance Check - Kochi 19', location: 'Kochi', surveyed: '08 Jan', stage: 'On hold', tone: '#ec835a', age: '232d', ageTone: '#d03b3b' },
+        { ...plain, id: 'HCI-2026-0072', name: 'Health Camp Intake - Kochi 11', location: 'Kochi', surveyed: '19 Feb', stage: 'Not started', tone: '#ec835a', age: '190d', ageTone: '#d03b3b' },
+        { ...plain, id: 'SGA-2026-0309', name: 'Skill Gap Assessment - Mumbai 23', location: 'Mumbai', surveyed: '02 Apr', stage: 'On hold', tone: '#ec835a', age: '148d', ageTone: '#ec835a' },
+        { ...plain, id: 'BSA-2026-0049', name: 'Branch Service Audit - Mumbai 5', location: 'Mumbai', surveyed: '10 Apr', stage: 'Not started', tone: '#ec835a', age: '140d', ageTone: '#ec835a' },
+        { ...plain, id: 'SSF-2026-0155', name: 'Solar Site Feasibility - Mumbai 8', location: 'Mumbai', surveyed: '13 Aug', stage: 'On hold', tone: '#ec835a', age: '15d', ageTone: '#fab219' },
+        { ...plain, id: 'SSF-2026-0409', name: 'Solar Site Feasibility - Kochi 20', location: 'Kochi', surveyed: '06 Aug', stage: 'Not started', tone: '#ec835a', age: '22d', ageTone: '#fab219' },
+        { ...plain, id: 'RFS-2026-0274', name: 'Retail Footfall Study - Kochi 5', location: 'Kochi', surveyed: '03 Oct', stage: 'Not started', tone: '#ec835a', age: '329d', ageTone: '#d03b3b' },
+        { ...plain, id: 'WQB-2026-0221/R2', name: 'Water Quality Baseline - Kochi 9', location: 'Kochi', surveyed: '28 Apr', stage: 'In review', tone: '#fab219', age: '122d', ageTone: '#ec835a' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

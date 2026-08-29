@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",       "title": "A · Workspace rail",  "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "OptionB.dc.html",    "title": "B · Split peek",      "x": 1560, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "OptionC.dc.html",    "title": "C · Pipeline board",  "x": 0,    "y": 1220, "w": 1440, "h": 900 },
+    { "file": "OptionD.dc.html",    "title": "D · Dense sheet",     "x": 1560, "y": 1220, "w": 1440, "h": 900 },
+    { "file": "Components.dc.html", "title": "Shared pieces",       "x": 780,  "y": 2500, "w": 1440, "h": 980 }
+  ],
+  "annotations": [
+    { "id": "brief",  "x": 0,    "y": -300, "w": 900, "text": "Four shells for the same 421 records, all built on the tokens already in globals.css.\n\nThey differ on what LEADS: A navigation · B triage · C status · D the data itself.\nPick one and it gets built into the app — the others can stay as reference." },
+    { "id": "note-a", "x": 0,    "y": 950,  "w": 420, "text": "A — Navigation leads.\nSaved views replace the filter bar. Best when you keep asking the same five questions.\nCost: the rail eats 236px, and views need managing." },
+    { "id": "note-b", "x": 1560, "y": 950,  "w": 420, "text": "B — Triage leads.\nList and detail side by side; you never navigate away. Best for working a backlog down.\nCost: only ~4 columns fit, so it is poor for scanning." },
+    { "id": "note-c", "x": 0,    "y": 2170, "w": 420, "text": "C — Status leads.\nThe phase model becomes the layout; drag a card to change status.\nCost: stops working past a few hundred records. A view, not the home screen." },
+    { "id": "note-d", "x": 1560, "y": 2170, "w": 420, "text": "D — The data leads.\nStill a sheet, just a good one: 27 rows on screen, inline edit, folding groups, stats inline.\nCost: looks least designed, and leans on keyboard use." }
+  ],
+  "launch": { "view": "canvas" }
+}

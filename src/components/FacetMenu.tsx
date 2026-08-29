@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Lightweight popover built on <details> - keyboard accessible, no library,
@@ -12,12 +12,15 @@ export function FacetMenu({
   children,
   align = "start",
   width = "w-64",
+  dashed = false,
 }: {
   label: string;
   activeCount?: number;
   children: React.ReactNode;
   align?: "start" | "end";
   width?: string;
+  /** the "add something" affordance reads as an outline, not a filled control */
+  dashed?: boolean;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
 
@@ -42,19 +45,23 @@ export function FacetMenu({
     <details ref={ref} className="group relative">
       <summary
         className={cn(
-          "flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors",
+          "flex cursor-pointer list-none items-center gap-1.5 rounded-md border text-xs font-medium transition-colors",
+          dashed ? "h-[26px] border-dashed px-2 text-[11.5px]" : "h-8 px-2.5",
           activeCount
             ? "border-hairline-strong bg-accent-wash text-ink"
             : "border-hairline text-ink-secondary hover:bg-surface-sunken hover:text-ink",
         )}
       >
+        {dashed && <Plus size={11} strokeWidth={2.5} aria-hidden />}
         {label}
         {!!activeCount && (
           <span className="rounded-sm bg-surface px-1 text-[10px] tabular-nums text-ink-secondary">
             {activeCount}
           </span>
         )}
-        <ChevronDown size={13} strokeWidth={2} className="text-ink-muted transition-transform group-open:rotate-180" />
+        {!dashed && (
+          <ChevronDown size={13} strokeWidth={2} className="text-ink-muted transition-transform group-open:rotate-180" />
+        )}
       </summary>
       <div
         className={cn(

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ChartCard } from "@/components/ChartCard";
-import { FilterBar } from "@/components/FilterBar";
+import { FilterChips } from "@/components/FilterChips";
 import { StatTile } from "@/components/StatTile";
 import { ActivityLine } from "@/components/charts/ActivityLine";
 import { LocationBars } from "@/components/charts/LocationBars";
@@ -16,6 +16,7 @@ import {
   statusBreakdown,
   summary,
 } from "@/lib/queries";
+import { headerFor } from "@/lib/views";
 import { formatMonth, pct } from "@/lib/utils";
 
 export const metadata = { title: "Analytics" };
@@ -30,6 +31,7 @@ export default async function AnalyticsPage({
   const raw = await searchParams;
   const filters = parseFilters(raw);
 
+  const scope = headerFor(filters);
   const s = summary(filters);
   const survey = statusBreakdown(filters, "survey");
   const completion = statusBreakdown(filters, "completion");
@@ -48,12 +50,15 @@ export default async function AnalyticsPage({
   };
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-4 px-4 py-5 sm:px-6">
+    <div className="space-y-4 px-6 pb-6 pt-[18px]">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            Every figure below is scoped by the filters in this bar.
+          <div className="flex items-baseline gap-2.5">
+            <h1 className="text-[19px] font-semibold tracking-tight">Analytics</h1>
+            <span className="text-[13px] text-ink-muted">{scope.title}</span>
+          </div>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Every figure below covers the {s.total.toLocaleString()} records in this view.
           </p>
         </div>
         <Link
@@ -66,7 +71,7 @@ export default async function AnalyticsPage({
       </div>
 
       {/* One filter row above everything it scopes. */}
-      <FilterBar filters={filters} facets={facets} locations={allLocations()} />
+      <FilterChips filters={filters} facets={facets} locations={allLocations()} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Records" value={s.total.toLocaleString()} emphasis />

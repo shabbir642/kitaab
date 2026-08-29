@@ -3,27 +3,32 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2 } from "lucide-react";
-import { IssueBadge, OverdueBadge, StatusBadge } from "./StatusBadge";
+import { ArrowDown, ArrowUp, Trash2, TriangleAlert } from "lucide-react";
 import { FacetMenu } from "./FacetMenu";
+import { PhaseCell } from "./PhaseCell";
 import { bulkStatusAction, deleteRecordsAction } from "@/app/actions";
 import type { Filters, SortKey } from "@/lib/filters";
 import { COMPLETION_STATUSES, SURVEY_STATUSES, type Assessment } from "@/lib/schema";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export type AssessmentRow = Assessment & {
   issues: string[];
   overdueDays: number | null;
+  turnaround: number | null;
 };
 
-const COLUMNS: { key: SortKey | null; label: string; className?: string }[] = [
-  { key: "assessmentId", label: "Assessment ID" },
-  { key: "name", label: "Name" },
-  { key: "location", label: "Location" },
-  { key: "surveyDate", label: "Survey" },
-  { key: "completionDate", label: "Completion" },
-  { key: null, label: "Flags" },
-  { key: "assessor", label: "Assessor" },
+const COLUMNS: {
+  key: SortKey | null;
+  label: string;
+  width: string;
+  align?: "right";
+}[] = [
+  { key: "assessmentId", label: "Assessment", width: "152px" },
+  { key: "name", label: "Name", width: "auto" },
+  { key: "location", label: "Location", width: "112px" },
+  { key: "surveyDate", label: "Progress", width: "254px" },
+  { key: "assessor", label: "Assessor", width: "116px" },
+  { key: null, label: "Age", width: "68px", align: "right" },
 ];
 
 export function DataTable({
@@ -40,7 +45,6 @@ export function DataTable({
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastRows, setLastRows] = useState(rows);
 
-  // Selection is meaningless once the underlying page changes.
   if (lastRows !== rows) {
     setLastRows(rows);
     setSelected(new Set());
@@ -48,33 +52,20 @@ export function DataTable({
 
   const sortHref = (key: SortKey) => {
     const p = new URLSearchParams(searchParams.toString());
-    const nextDir = filters.sort === key && filters.dir === "asc" ? "desc" : "asc";
     p.set("sort", key);
-    p.set("dir", nextDir);
+    p.set("dir", filters.sort === key && filters.dir === "asc" ? "desc" : "asc");
     p.delete("page");
     return `?${p.toString()}`;
   };
 
   const allChecked = rows.length > 0 && selected.size === rows.length;
-  const toggleAll = () =>
-    setSelected(allChecked ? new Set() : new Set(rows.map((r) => r.id)));
-  const toggle = (id: number) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
   const ids = [...selected];
 
   return (
     <div className="relative">
       {ids.length > 0 && (
-        <div className="sticky top-13 z-20 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-hairline-strong bg-surface-raised px-3 py-2 shadow-sm">
-          <span className="text-xs font-medium tabular-nums">
-            {ids.length} selected
-          </span>
+        <div className="sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-hairline-strong bg-surface-raised px-3 py-2 shadow-sm">
+          <span className="text-xs font-medium tabular-nums">{ids.length} selected</span>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
@@ -92,7 +83,7 @@ export function DataTable({
             <input type="hidden" name="returnTo" value={returnTo} />
             <button
               type="submit"
-              className="flex h-7 items-center gap-1.5 rounded-md border border-hairline px-2 text-xs font-medium text-ink hover:bg-surface-sunken"
+              className="flex h-7 items-center gap-1.5 rounded-md border border-hairline px-2 text-xs font-medium hover:bg-surface-sunken"
             >
               <Trash2 size={12} strokeWidth={2} style={{ color: "var(--status-critical)" }} />
               Delete
@@ -101,15 +92,21 @@ export function DataTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-hairline bg-surface thin-scroll">
-        <table className="w-full min-w-[980px] border-collapse text-left text-xs">
+      <div className="overflow-x-auto thin-scroll">
+        <table className="w-full min-w-[1020px] border-collapse text-left">
+          <colgroup>
+            <col style={{ width: "34px" }} />
+            {COLUMNS.map((c) => (
+              <col key={c.label} style={c.width === "auto" ? undefined : { width: c.width }} />
+            ))}
+          </colgroup>
           <thead>
-            <tr className="border-b border-hairline bg-surface-sunken/60">
-              <th scope="col" className="w-9 px-3 py-2">
+            <tr className="border-b border-hairline">
+              <th scope="col" className="py-2 pl-1">
                 <input
                   type="checkbox"
                   checked={allChecked}
-                  onChange={toggleAll}
+                  onChange={() => setSelected(allChecked ? new Set() : new Set(rows.map((r) => r.id)))}
                   aria-label="Select all rows on this page"
                   className="size-3.5 accent-[var(--accent)]"
                 />
@@ -119,8 +116,8 @@ export function DataTable({
                   key={c.label}
                   scope="col"
                   className={cn(
-                    "px-3 py-2 font-medium text-ink-secondary whitespace-nowrap",
-                    c.className,
+                    "whitespace-nowrap py-2 pr-4 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-muted",
+                    c.align === "right" && "pr-1 text-right",
                   )}
                 >
                   {c.key ? (
@@ -130,15 +127,12 @@ export function DataTable({
                       className="inline-flex items-center gap-1 hover:text-ink"
                     >
                       {c.label}
-                      {filters.sort === c.key ? (
-                        filters.dir === "asc" ? (
-                          <ArrowUp size={11} strokeWidth={2.5} />
+                      {filters.sort === c.key &&
+                        (filters.dir === "asc" ? (
+                          <ArrowUp size={10} strokeWidth={3} />
                         ) : (
-                          <ArrowDown size={11} strokeWidth={2.5} />
-                        )
-                      ) : (
-                        <ChevronsUpDown size={11} strokeWidth={2} className="text-ink-muted opacity-0 transition-opacity group-hover/head:opacity-100" />
-                      )}
+                          <ArrowDown size={10} strokeWidth={3} />
+                        ))}
                     </Link>
                   ) : (
                     c.label
@@ -150,10 +144,10 @@ export function DataTable({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length + 1} className="px-3 py-16 text-center">
-                  <p className="text-sm font-medium">No records match these filters</p>
+                <td colSpan={COLUMNS.length + 1} className="py-20 text-center">
+                  <p className="text-sm font-medium">Nothing here</p>
                   <p className="mt-1 text-xs text-ink-secondary">
-                    Try clearing a filter, or add a record.
+                    No records match this view. Try another one, or drop a filter.
                   </p>
                 </td>
               </tr>
@@ -166,30 +160,52 @@ export function DataTable({
                   router.push(`/assessments/${r.id}`);
                 }}
                 className={cn(
-                  "cursor-pointer border-b border-hairline last:border-0 transition-colors hover:bg-surface-sunken/70",
+                  "h-[52px] cursor-pointer border-b border-hairline transition-colors hover:bg-surface-sunken",
                   selected.has(r.id) && "bg-accent-wash",
                 )}
               >
-                <td className="px-3 py-2 align-top">
+                <td className="pl-1">
                   <input
                     type="checkbox"
                     checked={selected.has(r.id)}
-                    onChange={() => toggle(r.id)}
+                    onChange={() =>
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(r.id)) next.delete(r.id);
+                        else next.add(r.id);
+                        return next;
+                      })
+                    }
                     aria-label={`Select ${r.assessmentId}`}
                     className="size-3.5 accent-[var(--accent)]"
                   />
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="pr-4">
                   <Link
                     href={`/assessments/${r.id}`}
-                    className="font-mono text-[11px] font-medium text-ink underline-offset-2 hover:underline"
+                    className="font-mono text-[11px] font-medium underline-offset-2 hover:underline"
                   >
                     {r.assessmentId}
                   </Link>
                 </td>
-                <td className="max-w-[22rem] px-3 py-2 align-top">
-                  <span className="block truncate font-medium text-ink" title={r.name}>
-                    {r.name}
+                <td className="max-w-0 pr-4">
+                  <span className="flex items-center gap-1.5">
+                    {r.issues.length > 0 && (
+                      <TriangleAlert
+                        size={12}
+                        strokeWidth={2.25}
+                        style={{ color: "var(--status-warning)" }}
+                        aria-label={`${r.issues.length} data issue${r.issues.length === 1 ? "" : "s"}`}
+                      />
+                    )}
+                    <span className="truncate text-[12.5px] font-medium" title={r.name}>
+                      {r.name}
+                    </span>
+                    {r.origin === "manual" && (
+                      <span className="shrink-0 rounded border border-hairline px-1 text-[10px] text-ink-muted">
+                        manual
+                      </span>
+                    )}
                   </span>
                   {r.remarks && (
                     <span className="mt-0.5 block truncate text-[11px] text-ink-muted" title={r.remarks}>
@@ -197,24 +213,27 @@ export function DataTable({
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 align-top whitespace-nowrap text-ink-secondary">
-                  {r.location ?? <span className="text-ink-muted">&mdash;</span>}
+                <td className="pr-4 text-xs text-ink-secondary">
+                  {r.location ?? <span className="text-ink-muted">—</span>}
                 </td>
-                <PhaseCell status={r.surveyStatus} date={r.surveyDate} />
-                <PhaseCell status={r.completionStatus} date={r.completionDate} />
-                <td className="px-3 py-2 align-top">
-                  <div className="flex flex-wrap gap-1">
-                    {r.overdueDays != null && <OverdueBadge days={r.overdueDays} />}
-                    <IssueBadge count={r.issues.length} title={r.issues.join("\n")} />
-                    {r.origin === "manual" && (
-                      <span className="rounded-md border border-hairline px-1.5 py-0.5 text-[11px] text-ink-secondary">
-                        manual
-                      </span>
-                    )}
-                  </div>
+                <td className="pr-4">
+                  <PhaseCell
+                    surveyStatus={r.surveyStatus}
+                    surveyDate={r.surveyDate}
+                    completionStatus={r.completionStatus}
+                    completionDate={r.completionDate}
+                    overdueDays={r.overdueDays}
+                    turnaround={r.turnaround}
+                  />
                 </td>
-                <td className="px-3 py-2 align-top whitespace-nowrap text-ink-secondary">
-                  {r.assessor ?? <span className="text-ink-muted">&mdash;</span>}
+                <td className="pr-4 text-xs text-ink-secondary">
+                  {r.assessor ?? <span className="text-ink-muted">—</span>}
+                </td>
+                <td
+                  className="pr-1 text-right text-xs font-medium tabular-nums"
+                  style={{ color: r.overdueDays != null ? "var(--status-critical)" : undefined }}
+                >
+                  {r.overdueDays != null ? `${r.overdueDays}d` : ""}
                 </td>
               </tr>
             ))}
@@ -222,17 +241,6 @@ export function DataTable({
         </table>
       </div>
     </div>
-  );
-}
-
-function PhaseCell({ status, date }: { status: string | null; date: string | null }) {
-  return (
-    <td className="px-3 py-2 align-top whitespace-nowrap">
-      <StatusBadge status={status} size="sm" />
-      <span className="mt-0.5 block text-[11px] tabular-nums text-ink-muted">
-        {date ? formatDate(date) : "no date"}
-      </span>
-    </td>
   );
 }
 

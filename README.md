@@ -38,12 +38,25 @@ that without adding authentication first.
 
 ## What's in it
 
+**The shell**
+- A left rail of **saved views** — All records, Overdue, Awaiting completion, Data
+  issues, No survey date — each carrying an absolute count, plus the busiest
+  locations. The view you are standing in is the page title.
+- **⌘K command palette**: search records, jump to a view, apply a filter, or run
+  an action. Record lookup hits the server; everything else matches locally.
+- Filters that are not a saved view appear as removable chips under the title.
+  Adding one on top of a view stops the rail claiming you are still in it.
+
 **Records list** (`/assessments`)
-- Dense table: ID, name, location, both phases with status *and* date, flags, assessor
+- Assessment · name · location · **progress** · assessor · age
+- The progress column is a two-node pipeline: survey and completion as one
+  journey, with the connector coloured by what is actually happening. It replaces
+  four separate status/date columns.
 - Keyword search across ID, name, location, assessor and remarks (SQLite FTS5)
-- Faceted filters with live counts: survey status, completion status, "any status
-  column is X", location, survey/completion date ranges
-- One-click flags: overdue, has data issues, missing completion date, no survey date
+- Faceted filters with live counts behind **Add filter**: survey status,
+  completion status, "any status column is X", location, date ranges, origin
+- Flags: overdue, awaiting completion, data issues, missing completion date,
+  no survey date
 - Sortable columns, adjustable page size, multi-select with bulk status change and
   bulk delete
 - Every filter lives in the URL, so any view is bookmarkable and shareable
@@ -59,7 +72,7 @@ that without adding authentication first.
   data-quality warnings and provenance
 
 **Analytics** (`/analytics`)
-- Scoped by the same filter bar as the list
+- Scoped by the same view and filters as the list
 - Stat tiles: records, surveys completed, completions done, in flight, overdue,
   median turnaround
 - Survey/completion activity by month, status distribution per phase, and a
@@ -96,6 +109,12 @@ that without adding authentication first.
   how `pnpm check` runs against a scratch database instead of your real one.
 - `extras` is a JSON column carrying columns the app doesn't model yet. It exists
   so a future spreadsheet import doesn't have to drop anything.
+- **Saved views are code, not data** (`src/lib/views.ts`). A view is a query
+  string plus a count; "which view am I in" is decided by comparing filter
+  signatures, so a view and the filters that reproduce it can never drift apart.
+  User-defined saved views would be the natural next step.
+- The rail's counts are deliberately **not** scoped by the current filters — a
+  view's number has to mean the same thing wherever you are standing.
 
 ### Not built yet
 
@@ -129,7 +148,8 @@ src/lib/db.ts          SQLite connection, schema, FTS triggers
 src/lib/schema.ts      phases, status vocabulary, zod validation, warnings
 src/lib/queries.ts     filtering, CRUD, facets, analytics aggregates
 src/lib/filters.ts     URL <-> filter state
+src/lib/views.ts       saved views, active-view matching, page headings
 src/app/actions.ts     server actions (save, delete, bulk status, paste)
-src/components/        filter bar, table, form, charts
+src/components/        rail, command palette, filter chips, table, form, charts
 scripts/               seed, backup, check
 ```

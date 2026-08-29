@@ -79,6 +79,9 @@ export const SQL_HAS_ISSUES = `(
 
 const SQL_COMPLETION_OPEN = `(completion_status IS NULL OR completion_status NOT IN ('Completed', 'Rejected'))`;
 
+/** Survey finished, completion still running - the live workload. */
+export const SQL_AWAITING = `(survey_status = 'Completed' AND ${SQL_COMPLETION_OPEN})`;
+
 /* ---------------------------------------------------------------------------
    WHERE builder
 --------------------------------------------------------------------------- */
@@ -132,6 +135,7 @@ export function buildWhere(f: Filters): { sql: string; params: SQLInputValue[] }
 
   for (const flag of f.flags) {
     if (flag === "overdue") clauses.push(SQL_OVERDUE);
+    if (flag === "awaiting") clauses.push(SQL_AWAITING);
     if (flag === "issues") clauses.push(SQL_HAS_ISSUES);
     if (flag === "no-completion-date") clauses.push("completion_date IS NULL");
     if (flag === "unscheduled") clauses.push("survey_date IS NULL");
@@ -217,6 +221,7 @@ export function flagCounts(f: Filters): Record<string, number> {
     .prepare(
       `SELECT
          SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)            AS overdue,
+         SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)           AS awaiting,
          SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)         AS issues,
          SUM(CASE WHEN completion_date IS NULL THEN 1 ELSE 0 END)   AS noCompletionDate,
          SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)       AS unscheduled
@@ -225,6 +230,7 @@ export function flagCounts(f: Filters): Record<string, number> {
     .get(...params) as Record<string, number | null>;
   return {
     overdue: Number(r.overdue ?? 0),
+    awaiting: Number(r.awaiting ?? 0),
     issues: Number(r.issues ?? 0),
     "no-completion-date": Number(r.noCompletionDate ?? 0),
     unscheduled: Number(r.unscheduled ?? 0),
@@ -499,3 +505,74 @@ export function allAssessors(): string[] {
     ),
   ).map((r) => r.assessor);
 }
+
+/* ---------------------------------------------------------------------------
+   Rail counts.
+
+   Deliberately NOT scoped by the current filters: a saved view's count has to
+   mean the same thing wherever you are standing, otherwise the rail lies.
+--------------------------------------------------------------------------- */
+
+export type RailCounts = {
+  all: number;
+  overdue: number;
+  awaiting: number;
+  issues: number;
+  unscheduled: number;
+};
+
+export function railCounts(): RailCounts {
+  const r = db
+    .prepare(
+      `SELECT
+         COUNT(*)                                                  AS all_,
+         SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)           AS overdue,
+         SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)          AS awaiting,
+         SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)        AS issues,
+         SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)      AS unscheduled
+       FROM assessments WHERE deleted_at IS NULL`,
+    )
+    .get() as Record<string, number | null>;
+  return {
+    all: Number(r.all_ ?? 0),
+    overdue: Number(r.overdue ?? 0),
+    awaiting: Number(r.awaiting ?? 0),
+    issues: Number(r.issues ?? 0),
+    unscheduled: Number(r.unscheduled ?? 0),
+  };
+}
+
+export function locationCounts(limit = 4): { location: string; count: number; total: number }[] {
+  const all = rows<{ location: string; n: number }>(
+    db.prepare(
+      `SELECT location, COUNT(*) AS n FROM assessments
+       WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
+       GROUP BY location ORDER BY n DESC, location COLLATE NOCASE`,
+    ),
+  );
+  return all.slice(0, limit).map((r) => ({
+    location: r.location,
+    count: Number(r.n),
+    total: all.length,
+  }));
+}
+
+/** Small, fast lookup for the command palette. */
+export function quickSearch(q: string, limit = 6): Assessment[] {
+  const f = { ...EMPTY_FILTERS, q };
+  const { sql: where, params } = buildWhere(f as Filters);
+  return rows<Row>(
+    db.prepare(
+      `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
+       ORDER BY updated_at DESC LIMIT ?`,
+    ),
+    ...params,
+    limit,
+  ).map(toAssessment);
+}
+
+const EMPTY_FILTERS: Filters = {
+  q: "", surveyStatus: [], completionStatus: [], anyStatus: [], location: [],
+  surveyFrom: "", surveyTo: "", completionFrom: "", completionTo: "",
+  flags: [], origin: "", sort: "updatedAt", dir: "desc", page: 1, perPage: 50,
+};

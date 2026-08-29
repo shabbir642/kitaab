@@ -185,7 +185,8 @@ try {
   /* ---- list renders ---- */
   await goto("/assessments");
   const listText = await text();
-  ok("list page renders rows", /matching record/.test(listText) && /Assessment ID/.test(listText));
+  ok("list page renders rows", /All records/.test(listText) && /ASSESSMENT/i.test(listText));
+  ok("rail shows the saved views", /Awaiting completion/.test(listText) && /Data issues/.test(listText));
 
   /* ---- create ---- */
   await goto("/assessments/new");
@@ -282,7 +283,7 @@ try {
   ok("delete button found", await clickText("Delete"));
   await waitFor("delete finished", async () => {
     await goto(`/assessments?q=${encodeURIComponent(TAG)}`);
-    return /No records match these filters/.test(await text()) ? true : null;
+    return /Nothing here/.test(await text()) ? true : null;
   });
   ok("all test records deleted", true);
 

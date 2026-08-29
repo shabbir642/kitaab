@@ -28,6 +28,14 @@ export function formatDate(iso: string | null | undefined): string {
   return `${m[3]} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
+/** Two-digit year, for dense cells where the full form wraps. */
+export function formatDateShort(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${m[3]} ${MONTHS[Number(m[2]) - 1]} ${m[1].slice(2)}`;
+}
+
 export function formatMonth(ym: string): string {
   const [y, m] = ym.split("-");
   return `${MONTHS[Number(m) - 1]} ${y.slice(2)}`;

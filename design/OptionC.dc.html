@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    a { color: #3987e5; text-decoration: none; } a:hover { color: #6aa6ee; }
+    .mono { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #0d0d0d; color: #ffffff; overflow: hidden">
+
+  <div style="display: flex; align-items: center; gap: 14px; height: 50px; flex-shrink: 0; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1)">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #3987e5; color: #0d0d0d; font-size: 11px; font-weight: 700">K</span>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: -0.01em">Kitaab</span>
+    </div>
+    <div style="display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #1a1a19">
+      <span style="display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 5px; font-size: 12px; color: #898781">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        List
+      </span>
+      <span style="display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 5px; background: #232322; font-size: 12px; font-weight: 500">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="14" rx="1"/></svg>
+        Board
+      </span>
+      <span style="display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 5px; font-size: 12px; color: #898781">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+        Calendar
+      </span>
+    </div>
+
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 7px">
+      <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 6px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.1); color: #898781; font-size: 12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        Search
+      </span>
+      <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.18); background: #1a1a19; font-size: 12px">
+        <span style="color: #898781">Group</span> Completion status
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#898781" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+      <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); color: #c3c2b7; font-size: 12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Filter
+      </span>
+      <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 6px; background: #3987e5; color: #0d0d0d; font-size: 12px; font-weight: 600">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New
+      </span>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; padding: 16px 20px">
+
+    <sc-for list="{{columns}}" as="col" hint-placeholder-count="5">
+      <div style="display: flex; flex-direction: column; min-width: 0; border-radius: 10px; background: #131312; border: 1px solid rgba(255,255,255,0.1)">
+
+        <div style="padding: 11px 12px 9px">
+          <div style="display: flex; align-items: center; gap: 7px">
+            <span style="width: 7px; height: 7px; border-radius: 999px; background: {{col.tone}}"></span>
+            <span style="font-size: 12.5px; font-weight: 600">{{col.name}}</span>
+            <span class="num" style="margin-left: auto; font-size: 11px; color: #898781">{{col.count}}</span>
+          </div>
+          <div style="margin-top: 8px; height: 2px; border-radius: 999px; background: #232322">
+            <div style="height: 2px; border-radius: 999px; background: {{col.tone}}; width: {{col.bar}}"></div>
+          </div>
+        </div>
+
+        <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; padding: 3px 8px 8px">
+          <sc-for list="{{col.cards}}" as="c" hint-placeholder-count="3">
+            <div style="padding: 10px 10px 9px; border-radius: 8px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.1)">
+              <div style="display: flex; align-items: center; gap: 6px">
+                <span class="mono" style="font-size: 10px; color: #898781">{{c.id}}</span>
+                <sc-if value="{{c.overdue}}" hint-placeholder-val="{{true}}">
+                  <span class="num" style="margin-left: auto; display: flex; align-items: center; gap: 3px; font-size: 10px; color: #d03b3b">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+                    {{c.age}}
+                  </span>
+                </sc-if>
+              </div>
+              <div style="margin-top: 5px; font-size: 12px; font-weight: 500; line-height: 1.35">{{c.name}}</div>
+              <div style="margin-top: 9px; display: flex; align-items: center; gap: 7px">
+                <span style="height: 18px; display: flex; align-items: center; padding: 0 6px; border-radius: 4px; background: #232322; font-size: 10px; color: #c3c2b7">{{c.location}}</span>
+                <span class="num" style="font-size: 10px; color: #898781">{{c.surveyed}}</span>
+                <span style="margin-left: auto; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; background: #2c2c2a; font-size: 9px; font-weight: 600; color: #c3c2b7">{{c.initials}}</span>
+              </div>
+            </div>
+          </sc-for>
+
+          <sc-if value="{{col.more}}" hint-placeholder-val="{{true}}">
+            <div style="margin-top: 2px; padding: 7px; border-radius: 8px; border: 1px dashed rgba(255,255,255,0.18); text-align: center; font-size: 11px; color: #898781">{{col.more}}</div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      columns: [
+        { name: 'Not Started', count: 167, tone: '#ec835a', bar: '100%', more: '164 more',
+          cards: [
+            { id: 'WQB-2026-0325', name: 'Water Quality Baseline - Mumbai 3', location: 'Mumbai', surveyed: '17 Oct', initials: 'MF', overdue: true, age: '315d' },
+            { id: 'HCI-2026-0072', name: 'Health Camp Intake - Kochi 11', location: 'Kochi', surveyed: '19 Feb', initials: 'DS', overdue: true, age: '190d' },
+            { id: 'SSF-2026-0409', name: 'Solar Site Feasibility - Kochi 20', location: 'Kochi', surveyed: '06 Aug', initials: 'AB', overdue: true, age: '22d' },
+          ] },
+        { name: 'In Review', count: 39, tone: '#fab219', bar: '23%', more: '36 more',
+          cards: [
+            { id: 'CRS-2026-0265', name: 'Campus Readiness Survey - Mumbai 7', location: 'Mumbai', surveyed: '12 Nov', initials: '—', overdue: true, age: '289d' },
+            { id: 'RFS-2026-0290', name: 'Retail Footfall Study - Pune 17', location: 'Pune', surveyed: '26 Mar', initials: 'RI', overdue: true, age: '155d' },
+            { id: 'SGA-2026-0308', name: 'Skill Gap Assessment - Hyderabad 20', location: 'Hyderabad', surveyed: '23 May', initials: '—', overdue: true, age: '97d' },
+          ] },
+        { name: 'On Hold', count: 25, tone: '#ec835a', bar: '15%', more: '22 more',
+          cards: [
+            { id: 'SGA-2026-0309', name: 'Skill Gap Assessment - Mumbai 23', location: 'Mumbai', surveyed: '02 Apr', initials: 'TN', overdue: true, age: '148d' },
+            { id: 'CRS-2026-0103', name: 'Campus Readiness Survey - Mumbai 16', location: 'Mumbai', surveyed: '01 Dec', initials: 'PC', overdue: true, age: '270d' },
+            { id: 'SSF-2026-0155', name: 'Solar Site Feasibility - Mumbai 8', location: 'Mumbai', surveyed: '13 Aug', initials: 'DS', overdue: true, age: '15d' },
+          ] },
+        { name: 'Completed', count: 173, tone: '#0ca30c', bar: '100%', more: '170 more',
+          cards: [
+            { id: 'SSF-2026-0314', name: 'Solar Site Feasibility - Jaipur 12', location: 'Jaipur', surveyed: '21 Jul', initials: 'MF', overdue: false, age: '' },
+            { id: 'BSA-2026-0148', name: 'Branch Service Audit - Kolkata 9', location: 'Kolkata', surveyed: '14 Jul', initials: 'TN', overdue: false, age: '' },
+            { id: 'VCC-2026-0117', name: 'Vendor Compliance Check - Kochi 19', location: 'Kochi', surveyed: '08 Jan', initials: 'SK', overdue: false, age: '' },
+          ] },
+        { name: 'Rejected', count: 16, tone: '#d03b3b', bar: '10%', more: '13 more',
+          cards: [
+            { id: 'MSA-2026-0327/R2', name: 'Manufacturing Safety Audit - Kolkata 3', location: 'Kolkata', surveyed: '08 Sep', initials: 'PC', overdue: false, age: '' },
+            { id: 'BSA-2026-0395/R2', name: 'Branch Service Audit - Jaipur 16', location: 'Jaipur', surveyed: '04 Nov', initials: 'SK', overdue: false, age: '' },
+            { id: 'LTR-2026-0193', name: 'Logistics Turnaround Review - Nagpur 4', location: 'Other', surveyed: '18 Jun', initials: 'KR', overdue: false, age: '' },
+          ] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -2,6 +2,7 @@ import { COMPLETION_STATUSES, SURVEY_STATUSES } from "./schema";
 
 export const FLAGS = [
   { key: "overdue", label: "Overdue" },
+  { key: "awaiting", label: "Awaiting completion" },
   { key: "issues", label: "Has data issues" },
   { key: "no-completion-date", label: "Missing completion date" },
   { key: "unscheduled", label: "No survey date" },

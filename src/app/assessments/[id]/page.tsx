@@ -45,7 +45,7 @@ export default async function RecordPage({
     record.surveyStatus === "Completed" && open && surveyAge != null && surveyAge > OVERDUE_DAYS;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl space-y-5 px-6 py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link

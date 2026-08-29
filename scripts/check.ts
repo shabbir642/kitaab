@@ -1,12 +1,21 @@
 /** Ad-hoc verification of the validation + query layers against a scratch DB.
  *  Run with: KITAAB_DB_PATH=/tmp/check.db node scripts/check.ts */
 import { assessmentInput, warningsFor } from "../src/lib/schema.ts";
-import { parseFilters } from "../src/lib/filters.ts";
+import { FLAGS, parseFilters } from "../src/lib/filters.ts";
+import { VIEWS, headerFor, matchLocation, matchView } from "../src/lib/views.ts";
+import { locationCounts, railCounts } from "../src/lib/queries.ts";
 import {
   assessmentIdExists, byLocation, createAssessment, deleteAssessments,
   facetCounts, flagCounts, getAssessment, listAssessments, monthlyActivity,
   statusBreakdown, summary, updateAssessment,
 } from "../src/lib/queries.ts";
+import { db } from "../src/lib/db.ts";
+
+// Leave no trace, and tolerate a scratch database that a previous run died
+// halfway through: the fixture ID is cleared before and after.
+const clearFixture = () =>
+  db.prepare("DELETE FROM assessments WHERE assessment_id = 'CHK-001'").run();
+clearFixture();
 
 let fails = 0;
 const ok = (name: string, cond: boolean, extra?: unknown) => {
@@ -71,7 +80,28 @@ ok("pagination page 2", paged.page === 2 && paged.items.length <= 25);
 ok("page beyond end clamps", listAssessments(f({ page: "99999", perPage: "25" })).page === paged.pageCount);
 
 ok("facet counts non-empty", facetCounts(f({}), "surveyStatus").size > 0);
-ok("flag counts present", Object.keys(flagCounts(f({}))).length === 4);
+ok("every flag is counted", Object.keys(flagCounts(f({}))).length === FLAGS.length);
+ok("awaiting flag narrows to open completions",
+   listAssessments(f({ flags: "awaiting" })).items.every(
+     (r) => r.surveyStatus === "Completed" && !["Completed", "Rejected"].includes(r.completionStatus ?? ""),
+   ));
+
+/* ---- saved views ---- */
+const rc = railCounts();
+ok("rail counts are absolute, not filtered",
+   rc.all === listAssessments(f({})).total && rc.overdue === flagCounts(f({})).overdue, rc);
+ok("every view resolves to itself",
+   VIEWS.every((v) => matchView(parseFilters(Object.fromEntries(new URLSearchParams(v.query)))) === v.key));
+ok("a view plus an extra filter is no longer that view",
+   matchView(f({ flags: "overdue", location: "Pune" })) === null);
+ok("a single location reads as a location view", matchLocation(f({ location: "Pune" })) === "Pune");
+ok("two locations do not", matchLocation(f({ location: ["Pune", "Kochi"] })) === null);
+ok("header names the view", headerFor(f({ flags: "overdue" })).title === "Overdue");
+ok("header names a bare location", headerFor(f({ location: "Pune" })).title === "Pune");
+ok("header falls back for a compound filter",
+   headerFor(f({ flags: "overdue", location: "Pune" })).title === "Filtered records");
+ok("location counts are ordered and carry the total",
+   locationCounts(3).length === 3 && locationCounts(3)[0].total >= 3);
 
 /* ---- analytics ---- */
 const s = summary(f({}));
@@ -91,6 +121,8 @@ ok("filtered analytics narrows", summary(f({ location: "Testville" })).total < s
 ok("soft delete", deleteAssessments([id]) === 1);
 ok("gone from reads", getAssessment(id) === null);
 ok("ID reusable after delete", !assessmentIdExists("CHK-001"));
+
+clearFixture();
 
 console.log(fails === 0 ? "\nALL PASS" : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);
