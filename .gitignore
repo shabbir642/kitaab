@@ -49,3 +49,6 @@ next-env.d.ts
 
 # test build dir
 /.next-test/
+
+# local-only notes and runbooks
+*.local.md
