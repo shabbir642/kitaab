@@ -7,15 +7,15 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
-    "seed": "node --import ./scripts/register.mjs scripts/seed.ts",
+    "seed": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/seed.ts",
     "typecheck": "tsc --noEmit",
-    "check": "node --import ./scripts/register.mjs scripts/check.ts",
-    "backup": "node --import ./scripts/register.mjs scripts/backup.ts",
+    "check": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/check.ts",
+    "backup": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/backup.ts",
     "e2e": "node scripts/e2e.mjs",
-    "db:push": "node --import ./scripts/register.mjs scripts/db-push.ts",
+    "db:push": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/db-push.ts",
     "test:ui": "node scripts/ui/run-all.mjs",
-    "trim": "node --import ./scripts/register.mjs scripts/trim.ts",
-    "copy-up": "node --import ./scripts/register.mjs scripts/copy-up.ts"
+    "trim": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/trim.ts",
+    "copy-up": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/copy-up.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
