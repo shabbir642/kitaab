@@ -57,7 +57,7 @@ export function SortMenu({ sorts }: { sorts: SortSpec[] }) {
                 apply(sorts.map((x, j) => (j === i ? { ...x, dir: x.dir === "asc" ? "desc" : "asc" } : x)))
               }
               title={s.dir === "asc" ? "Ascending — click for descending" : "Descending — click for ascending"}
-              className="flex h-6 items-center gap-1 rounded border border-hairline px-1.5 text-[10px] text-ink-secondary hover:bg-surface-sunken hover:text-ink"
+              className="flex h-8 items-center gap-1 rounded border border-hairline px-2 text-[11px] text-ink-secondary hover:bg-surface-sunken hover:text-ink sm:h-6 sm:px-1.5 sm:text-[10px]"
             >
               {s.dir === "asc" ? <ArrowUp size={10} strokeWidth={3} /> : <ArrowDown size={10} strokeWidth={3} />}
               {s.dir === "asc" ? "A→Z" : "Z→A"}
@@ -67,7 +67,7 @@ export function SortMenu({ sorts }: { sorts: SortSpec[] }) {
               onClick={() => apply(sorts.filter((_, j) => j !== i))}
               aria-label={`Remove ${SORT_LABELS[s.key]} from the sort`}
               disabled={sorts.length === 1}
-              className="grid size-6 place-items-center rounded text-ink-muted hover:text-ink disabled:opacity-30"
+              className="grid size-8 place-items-center rounded text-ink-muted hover:text-ink disabled:opacity-30 sm:size-6"
             >
               <X size={11} strokeWidth={2.5} />
             </button>
@@ -85,7 +85,7 @@ export function SortMenu({ sorts }: { sorts: SortSpec[] }) {
               key={k}
               type="button"
               onClick={() => apply([...sorts, { key: k, dir: "asc" }])}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-2.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken sm:py-1.5"
             >
               <Plus size={11} strokeWidth={2.5} className="text-ink-muted" />
               {SORT_LABELS[k]}
@@ -99,7 +99,7 @@ export function SortMenu({ sorts }: { sorts: SortSpec[] }) {
           <button
             type="button"
             onClick={() => apply(DEFAULT_SORTS)}
-            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+            className="w-full rounded-md px-2 py-2.5 text-left text-xs text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink sm:py-1.5"
           >
             Reset to last updated
           </button>

@@ -102,7 +102,7 @@ export function Rail({
         <Link
           href="/assessments"
           onClick={onClose}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 py-2"
           title={collapsed ? "Kitaab" : undefined}
         >
           <span
@@ -124,7 +124,7 @@ export function Rail({
           aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
           aria-expanded={!collapsed}
           className={cn(
-            "ml-auto grid size-7 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface hover:text-ink",
+            "ml-auto grid size-10 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface hover:text-ink lg:size-7",
             collapsed && "lg:ml-0 lg:hidden",
           )}
         >
@@ -151,7 +151,7 @@ export function Rail({
           onClick={onClose}
           title={collapsed ? "New record" : undefined}
           className={cn(
-            "flex h-[30px] items-center justify-center gap-1.5 rounded-md text-xs font-semibold text-accent-ink",
+            "flex h-11 items-center justify-center gap-1.5 rounded-md text-xs font-semibold text-accent-ink lg:h-[30px]",
             collapsed && "lg:h-9",
           )}
           style={{ background: "var(--accent)" }}
@@ -175,7 +175,7 @@ export function Rail({
                 title={collapsed ? `${v.name} — ${counts[v.countKey]}` : v.description}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-[30px] items-center gap-2 rounded-md px-2 text-[12.5px] transition-colors",
+                  "flex h-11 items-center gap-2 rounded-md px-2 text-[13px] transition-colors lg:h-[30px] lg:text-[12.5px]",
                   collapsed && "lg:h-9 lg:justify-center lg:px-0",
                   active
                     ? "bg-accent-wash font-medium text-ink"
@@ -212,7 +212,7 @@ export function Rail({
                 onClick={onClose}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-7 items-center gap-2 rounded-md px-2 text-[12.5px] transition-colors",
+                  "flex h-11 items-center gap-2 rounded-md px-2 text-[13px] transition-colors lg:h-7 lg:text-[12.5px]",
                   active
                     ? "bg-accent-wash font-medium text-ink"
                     : "text-ink-secondary hover:bg-surface hover:text-ink",
@@ -227,7 +227,7 @@ export function Rail({
             <button
               type="button"
               onClick={() => setShowAllLocations((v) => !v)}
-              className="flex h-7 items-center rounded-md px-2 text-left text-[12.5px] text-ink-muted transition-colors hover:text-ink"
+              className="flex h-11 items-center rounded-md px-2 text-left text-[13px] text-ink-muted transition-colors hover:text-ink lg:h-7 lg:text-[12.5px]"
             >
               {showAllLocations ? "Show fewer" : `Show all ${locationTotal}`}
             </button>
@@ -250,7 +250,7 @@ export function Rail({
           title="Jump to a view, a record or an action"
           aria-label="Open the command palette"
           className={cn(
-            "flex items-center gap-1.5 text-[12.5px] text-ink-secondary transition-colors hover:text-ink",
+            "flex h-11 items-center gap-1.5 text-[12.5px] text-ink-secondary transition-colors hover:text-ink lg:h-auto",
             collapsed && "lg:grid lg:size-9 lg:place-items-center",
           )}
         >
@@ -271,7 +271,7 @@ export function Rail({
           title={collapsed ? "Analytics" : undefined}
           aria-current={pathname === "/analytics" ? "page" : undefined}
           className={cn(
-            "flex items-center gap-[7px] text-[12.5px] transition-colors",
+            "flex h-11 items-center gap-[7px] text-[12.5px] transition-colors lg:h-auto",
             collapsed && "lg:grid lg:size-9 lg:place-items-center",
             pathname === "/analytics" ? "font-medium text-ink" : "text-ink-secondary hover:text-ink",
           )}

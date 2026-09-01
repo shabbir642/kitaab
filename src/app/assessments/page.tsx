@@ -67,32 +67,38 @@ export default async function AssessmentsPage({
 
   return (
     <div className="flex min-h-full flex-col px-6 pb-5 pt-[18px]">
-      <header className="flex flex-wrap items-start gap-4 pb-3">
-        <div className="min-w-0">
+      <header className="flex items-start justify-between gap-3 pb-3">
+        <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
-            <h1 className="truncate text-[19px] font-semibold tracking-tight">{title}</h1>
+            <h1 className="truncate text-[17px] font-semibold tracking-tight sm:text-[19px]">{title}</h1>
             <span className="text-[13px] tabular-nums text-ink-muted">
               {result.total.toLocaleString()}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-ink-muted">{description}</p>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        {/* Labels collapse away on a phone so these stay on the title's row
+            instead of wrapping onto one of their own. */}
+        <div className="flex shrink-0 items-center gap-1.5">
           <Link
             href={`/api/export${toQueryString(filters)}`}
             prefetch={false}
-            className="flex h-[30px] items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium text-ink-secondary hover:bg-surface-sunken hover:text-ink"
+            title="Export this view to CSV"
+            aria-label="Export this view to CSV"
+            className="flex h-9 items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium text-ink-secondary hover:bg-surface-sunken hover:text-ink sm:h-[30px]"
           >
             <Download size={13} strokeWidth={2} />
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
           </Link>
           <Link
             href="/assessments/new"
-            className="flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink"
+            title="New record"
+            aria-label="New record"
+            className="flex h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink sm:h-[30px]"
             style={{ background: "var(--accent)" }}
           >
             <Plus size={14} strokeWidth={2.5} />
-            New record
+            <span className="hidden sm:inline">New record</span>
           </Link>
         </div>
       </header>

@@ -75,7 +75,7 @@ export function DataTable({
   return (
     <div className="relative">
       {ids.length > 0 && (
-        <div className="sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-hairline-strong bg-surface-raised px-3 py-2 shadow-sm">
+        <div className="sticky top-0 z-20 mb-2 hidden flex-wrap items-center gap-2 rounded-lg border border-hairline-strong bg-surface-raised px-3 py-2 shadow-sm md:flex">
           <span className="text-xs font-medium tabular-nums">{ids.length} selected</span>
           <button
             type="button"
@@ -103,7 +103,79 @@ export function DataTable({
         </div>
       )}
 
-      <div className="overflow-x-auto thin-scroll">
+      {/* Below md a phone shows two of seven columns, so the same rows are
+          rendered as cards instead - nothing important ends up off-screen. */}
+      <ul className="divide-y divide-[var(--border)] border-t border-hairline md:hidden">
+        {rows.length === 0 && (
+          <li className="py-16 text-center">
+            <p className="text-sm font-medium">Nothing here</p>
+            <p className="mt-1 text-xs text-ink-secondary">
+              No records match this view. Try another one, or drop a filter.
+            </p>
+          </li>
+        )}
+        {rows.map((r) => (
+          <li key={r.id}>
+            <Link
+              href={`/assessments/${r.id}`}
+              className="block px-1 py-3 transition-colors active:bg-surface-sunken"
+            >
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-[11px] font-medium">{r.assessmentId}</span>
+                {r.origin === "manual" && (
+                  <span className="rounded border border-hairline px-1 text-[10px] text-ink-muted">
+                    manual
+                  </span>
+                )}
+                {r.overdueDays != null && (
+                  <span
+                    className="ml-auto text-[11px] font-medium tabular-nums"
+                    style={{ color: "var(--status-critical)" }}
+                  >
+                    {r.overdueDays}d
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-1 flex items-start gap-1.5 text-[13px] font-medium leading-snug">
+                {r.issues.length > 0 && (
+                  <TriangleAlert
+                    size={12}
+                    strokeWidth={2.25}
+                    style={{ color: "var(--status-warning)" }}
+                    className="mt-[3px] shrink-0"
+                    aria-label={`${r.issues.length} data issue${r.issues.length === 1 ? "" : "s"}`}
+                  />
+                )}
+                {r.name}
+              </p>
+
+              {r.remarks && (
+                <p className="mt-0.5 line-clamp-2 text-[11px] text-ink-muted">{r.remarks}</p>
+              )}
+
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-ink-secondary">
+                <span>{r.location ?? "—"}</span>
+                <span className="text-ink-muted" aria-hidden>·</span>
+                <span className="truncate">{r.assessor ?? "Unassigned"}</span>
+              </p>
+
+              <div className="mt-2">
+                <PhaseCell
+                  surveyStatus={r.surveyStatus}
+                  surveyDate={r.surveyDate}
+                  completionStatus={r.completionStatus}
+                  completionDate={r.completionDate}
+                  overdueDays={r.overdueDays}
+                  turnaround={r.turnaround}
+                />
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto thin-scroll md:block">
         <table className="w-full min-w-[1020px] border-collapse text-left">
           <colgroup>
             <col style={{ width: "34px" }} />
@@ -119,7 +191,7 @@ export function DataTable({
                   checked={allChecked}
                   onChange={() => setSelected(allChecked ? new Set() : new Set(rows.map((r) => r.id)))}
                   aria-label="Select all rows on this page"
-                  className="size-3.5 accent-[var(--accent)]"
+                  className="size-4 accent-[var(--accent)]"
                 />
               </th>
               {COLUMNS.map((c) => (
@@ -182,7 +254,7 @@ export function DataTable({
                       })
                     }
                     aria-label={`Select ${r.assessmentId}`}
-                    className="size-3.5 accent-[var(--accent)]"
+                    className="size-4 accent-[var(--accent)]"
                   />
                 </td>
                 <td className="pr-4">

@@ -104,7 +104,7 @@ export function FilterChips({
       {chips.map((c) => (
         <span
           key={c.key}
-          className="flex h-[26px] items-center gap-1.5 rounded-md border border-hairline-strong bg-surface px-2 text-[11.5px]"
+          className="flex h-8 items-center gap-1.5 rounded-md border border-hairline-strong bg-surface px-2 text-[12px] sm:h-[26px] sm:text-[11.5px]"
         >
           <span className="text-ink-muted">{c.field}</span>
           <span className="max-w-40 truncate">{c.value}</span>
@@ -112,7 +112,7 @@ export function FilterChips({
             type="button"
             onClick={() => commit(c.remove)}
             aria-label={`Remove ${c.field} ${c.value}`}
-            className="text-ink-muted hover:text-ink"
+            className="-m-2 p-2 text-ink-muted hover:text-ink"
           >
             <X size={11} strokeWidth={2.5} />
           </button>
@@ -128,7 +128,7 @@ export function FilterChips({
                 key={c.key}
                 type="button"
                 onClick={() => setCategory(c.key)}
-                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken"
+                className="w-full rounded-md px-2 py-2.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken sm:py-1.5"
               >
                 {c.label}
               </button>
@@ -252,7 +252,7 @@ export function FilterChips({
               }
             })
           }
-          className="flex h-[26px] items-center gap-1 rounded-md px-1.5 text-[11.5px] text-ink-secondary hover:text-ink"
+          className="flex h-8 items-center gap-1 rounded-md px-2 text-[12px] text-ink-secondary hover:text-ink sm:h-[26px] sm:px-1.5 sm:text-[11.5px]"
         >
           <X size={11} strokeWidth={2.5} /> Clear
         </button>

@@ -46,7 +46,7 @@ export function FacetMenu({
       <summary
         className={cn(
           "flex cursor-pointer list-none items-center gap-1.5 rounded-md border text-xs font-medium transition-colors",
-          dashed ? "h-[26px] border-dashed px-2 text-[11.5px]" : "h-8 px-2.5",
+          dashed ? "h-9 border-dashed px-2.5 text-[12px] sm:h-[26px] sm:px-2 sm:text-[11.5px]" : "h-9 px-2.5 sm:h-8",
           activeCount
             ? "border-hairline-strong bg-accent-wash text-ink"
             : "border-hairline text-ink-secondary hover:bg-surface-sunken hover:text-ink",
@@ -93,7 +93,7 @@ export function FacetOption({
       onClick={onToggle}
       role="menuitemcheckbox"
       aria-checked={checked}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken"
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2.5 text-left text-xs text-ink transition-colors hover:bg-surface-sunken sm:py-1.5"
     >
       <span className="grid size-4 shrink-0 place-items-center rounded border border-hairline-strong">
         {checked && <Check size={11} strokeWidth={3} />}

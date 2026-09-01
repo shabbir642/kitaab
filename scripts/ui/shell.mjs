@@ -123,11 +123,51 @@ try {
   ok("content gets the whole width", (await ev(`Math.round(document.querySelector('main').getBoundingClientRect().width)`)) >= 380);
   ok("page does not scroll sideways", await ev(`document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1`),
      await ev(`document.documentElement.scrollWidth + ' vs ' + document.documentElement.clientWidth`));
-  ok("the wide table still scrolls inside its own container", await ev(`(() => {
-    const t = document.querySelector('table');
-    const s = t && t.closest('[class*="overflow-x"]');
-    return !!s && s.scrollWidth > s.clientWidth;
+  /* ---- the list is cards on a phone, not a two-of-seven-columns table ---- */
+  ok("rows render as cards", await ev(`(() => {
+    const cards = [...document.querySelectorAll('main ul li a[href^="/assessments/"]')];
+    return cards.length > 0 && cards[0].offsetParent !== null;
   })()`));
+  ok("the table is not rendered at all", await ev(`(() => {
+    const t = document.querySelector('table');
+    return !t || t.closest('div').offsetParent === null;
+  })()`));
+  ok("a card carries the progress pipeline", await ev(`(() => {
+    const card = document.querySelector('main ul li a');
+    return !!card && /→/.test(card.innerText);
+  })()`));
+  ok("a card carries location and assessor", await ev(`(() => {
+    const text = document.querySelector('main ul').innerText;
+    return /·/.test(text);
+  })()`));
+
+  /* ---- touch targets ---- */
+  const tooSmall = await ev(`(() => {
+    const out = [];
+    for (const el of document.querySelectorAll('button, a, summary, input[type=checkbox]')) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      if (el.closest('[aria-hidden="true"]')) continue;
+      if (Math.min(r.width, r.height) < 32) {
+        out.push((el.getAttribute('aria-label') || el.textContent.trim().slice(0, 20) || el.tagName)
+          + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
+      }
+    }
+    return out;
+  })()`);
+  ok("no tap target under 32px", tooSmall.length === 0, tooSmall.join(" | "));
+
+  ok("header actions sit on the title's row", await ev(`(() => {
+    const h1 = document.querySelector('h1');
+    const add = [...document.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'New record');
+    if (!h1 || !add) return false;
+    return Math.abs(h1.getBoundingClientRect().top - add.getBoundingClientRect().top) < 40;
+  })()`));
+
+  ok("the keyword box takes a full row", (await ev(`(() => {
+    const i = document.querySelector('input[aria-label="Filter records by keyword"]');
+    return i ? Math.round(i.getBoundingClientRect().width) : 0;
+  })()`)) > 300);
 
   ok("a way to open the sidebar exists", await ev(`!!document.querySelector('button[aria-label="Open the sidebar"]')`));
   ok("opening it clicks", await clickLabel("Open the sidebar"));
@@ -165,6 +205,15 @@ try {
   await goto("/assessments");
   box = await railBox();
   ok("becomes a column at 1024", box && box.left === 0 && box.width === 236, box);
+  ok("the table is back at 1024", await ev(`(() => {
+    const t = document.querySelector('table');
+    return !!t && t.closest('div').offsetParent !== null;
+  })()`));
+  // display:none leaves them in the DOM, so ask whether they render
+  ok("cards are not rendered at 1024", await ev(`(() => {
+    const card = document.querySelector('main ul li a[href^="/assessments/"]');
+    return !card || card.offsetParent === null;
+  })()`));
 } catch (err) {
   fails++;
   console.log(`\nERROR ${err.message}`);

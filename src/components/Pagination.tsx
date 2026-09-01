@@ -73,7 +73,7 @@ function PerPage({
             p.delete("page");
           })}
           className={cn(
-            "px-1.5 py-0.5 tabular-nums transition-colors",
+            "grid min-w-9 place-items-center px-2.5 py-2.5 tabular-nums transition-colors sm:min-w-0 sm:px-1.5 sm:py-0.5",
             n === current ? "bg-surface-sunken font-medium text-ink" : "hover:bg-surface-sunken",
           )}
         >
@@ -97,7 +97,7 @@ function PageLink({
 }) {
   if (disabled) {
     return (
-      <span aria-disabled className="grid size-7 place-items-center rounded-md border border-hairline text-ink-muted opacity-40">
+      <span aria-disabled className="grid size-9 place-items-center rounded-md border border-hairline text-ink-muted opacity-40 sm:size-7">
         {children}
       </span>
     );
@@ -107,7 +107,7 @@ function PageLink({
       href={href}
       scroll={false}
       aria-label={label}
-      className="grid size-7 place-items-center rounded-md border border-hairline hover:bg-surface-sunken hover:text-ink"
+      className="grid size-9 place-items-center rounded-md border border-hairline hover:bg-surface-sunken hover:text-ink sm:size-7"
     >
       {children}
     </Link>
