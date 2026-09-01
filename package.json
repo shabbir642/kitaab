@@ -18,7 +18,10 @@
     "copy-up": "KITAAB_USE_REMOTE=1 node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/copy-up.ts",
     "smoke": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/smoke.ts",
     "db:push:remote": "KITAAB_USE_REMOTE=1 pnpm db:push",
-    "smoke:remote": "KITAAB_USE_REMOTE=1 pnpm smoke"
+    "smoke:remote": "KITAAB_USE_REMOTE=1 pnpm smoke",
+    "export:sql": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/export-sql.ts",
+    "export:sql:remote": "KITAAB_USE_REMOTE=1 pnpm export:sql",
+    "restore:sql": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/restore-sql.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

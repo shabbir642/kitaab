@@ -40,6 +40,8 @@ that without adding authentication first.
 | `pnpm smoke` | read/write smoke test, safe against production — creates one record and removes it |
 | `pnpm db:push:remote` / `pnpm smoke:remote` | the same, aimed at the deployment's database |
 | `pnpm backup` | consistent snapshot into `backups/` (local file only) |
+| `pnpm export:sql` / `pnpm export:sql:remote` | replayable `.sql` dump — works against Turso, no CLI needed |
+| `pnpm restore:sql <file> --into <url>` | replay a dump; dry-runs without `--yes` |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
 | `pnpm test:ui` | boots a server on a throwaway database and runs every browser suite against it |
@@ -217,8 +219,11 @@ Two things worth knowing:
   `Promise.all` — the records list fires six at once, analytics ten — which
   turns roughly ten sequential trips into two rounds. Keep that shape when
   adding queries to a page.
-- `pnpm backup` only snapshots a local file. For Turso, use its own dump:
-  `turso db shell kitaab .dump > backups/kitaab-$(date +%F).sql`
+- `pnpm backup` only snapshots a local file. For a hosted database use
+  `pnpm export:sql:remote`, which writes a replayable `.sql` dump through the
+  same client the app uses — schema, rows, then the FTS index rebuilt from them.
+  `pnpm restore:sql` replays one, and restoring into a scratch file is how you
+  check a dump is good.
 
 ## Sharing it temporarily
 
