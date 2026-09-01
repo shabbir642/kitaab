@@ -2,7 +2,19 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const BASE = (process.argv[2] ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+const BASE = (() => {
+  const given = process.argv[2] ?? process.env.TEST_BASE_URL;
+  if (!given) {
+    console.error(
+      "This suite creates and deletes records, so it will not guess a target.\n" +
+        "Run it through `pnpm test:ui`, which boots a server on a throwaway\n" +
+        "database, or pass a base URL explicitly:\n\n" +
+        "  node " + process.argv[1].replace(process.cwd() + "/", "") + " http://127.0.0.1:3123\n",
+    );
+    process.exit(2);
+  }
+  return given.replace(/\/$/, "");
+})();
 const PORT = Number(process.env.CDP_PORT ?? 9602), sleep = ms => new Promise(r => setTimeout(r, ms));
 const profile = mkdtempSync(join(tmpdir(), "ft-"));
 const ch = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",

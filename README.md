@@ -35,6 +35,7 @@ that without adding authentication first.
 | `pnpm build` / `pnpm start` | production build and serve |
 | `pnpm seed [n] [--reset]` | insert sample records (`--reset` clears first) |
 | `pnpm db:push` | apply the schema to whatever `KITAAB_DB_URL` points at |
+| `pnpm trim [--keep N] [--yes]` | shrink to a small representative set; dry run without `--yes` |
 | `pnpm backup` | consistent snapshot into `backups/` (local file only) |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
@@ -140,6 +141,9 @@ that without adding authentication first.
 - Timestamps are formatted by hand rather than with `toLocaleTimeString`, which
   renders differently under Node and the browser and is therefore a hydration
   mismatch on any server-rendered time.
+- **The browser suites refuse to run without an explicit target.** They create
+  and delete records; defaulting to the dev server once meant a test edited a
+  hand-entered record. `pnpm test:ui` is the safe entry point.
 - **Saved views are code, not data** (`src/lib/views.ts`). A view is a query
   string plus a count; "which view am I in" is decided by comparing filter
   signatures, so a view and the filters that reproduce it can never drift apart.
