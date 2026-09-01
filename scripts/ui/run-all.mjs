@@ -15,7 +15,13 @@ import { join } from "node:path";
 
 const PORT = Number(process.env.TEST_PORT ?? 3123);
 const BASE = `http://127.0.0.1:${PORT}`;
-const SUITES = ["scripts/e2e.mjs", "scripts/ui/list.mjs", "scripts/ui/palette.mjs", "scripts/ui/record.mjs"];
+const SUITES = [
+  "scripts/e2e.mjs",
+  "scripts/ui/shell.mjs",
+  "scripts/ui/list.mjs",
+  "scripts/ui/palette.mjs",
+  "scripts/ui/record.mjs",
+];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const workdir = mkdtempSync(join(tmpdir(), "kitaab-test-"));
