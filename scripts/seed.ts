@@ -8,7 +8,9 @@
  * dates, an unspecified location) so the filters, warnings and analytics have
  * something real to chew on.
  */
-import { db } from "../src/lib/db.ts";
+import { db, first, pushSchema, run } from "../src/lib/db.ts";
+
+await pushSchema();
 
 const RESET = process.argv.includes("--reset");
 const COUNT = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 420);
@@ -98,30 +100,39 @@ function makeRow(i: number) {
 }
 
 if (RESET) {
-  db.exec("DELETE FROM assessments");
-  db.exec("INSERT INTO assessments_fts(assessments_fts) VALUES ('rebuild')");
+  await run("DELETE FROM assessments");
+  await run("INSERT INTO assessments_fts(assessments_fts) VALUES ('rebuild')");
   console.log("cleared existing rows");
 }
 
-const insert = db.prepare(
-  `INSERT OR IGNORE INTO assessments
+const SQL = `INSERT OR IGNORE INTO assessments
     (assessment_id, name, location, assessor, survey_date, survey_status,
      completion_date, completion_status, remarks, origin, extras, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', '{}', ?, ?)`,
-);
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', '{}', ?, ?)`;
 
-let inserted = 0;
-db.exec("BEGIN");
+// Batched so a remote database sees a handful of round trips rather than one
+// per row; each batch is its own transaction.
+const CHUNK = 100;
+const statements = [];
 for (let i = 0; i < COUNT; i++) {
   const r = makeRow(i);
   const stamp = new Date(TODAY.getTime() - int(0, 60) * 86400000).toISOString();
-  const info = insert.run(
-    r.assessmentId, r.name, r.location, r.assessor, r.surveyDate, r.surveyStatus,
-    r.completionDate, r.completionStatus, r.remarks, stamp, stamp,
-  );
-  inserted += Number(info.changes);
+  statements.push({
+    sql: SQL,
+    args: [
+      r.assessmentId, r.name, r.location, r.assessor, r.surveyDate, r.surveyStatus,
+      r.completionDate, r.completionStatus, r.remarks, stamp, stamp,
+    ],
+  });
 }
-db.exec("COMMIT");
 
-const total = (db.prepare("SELECT COUNT(*) AS n FROM assessments WHERE deleted_at IS NULL").get() as { n: number }).n;
+let inserted = 0;
+for (let i = 0; i < statements.length; i += CHUNK) {
+  const results = await db.batch(statements.slice(i, i + CHUNK), "write");
+  inserted += results.reduce((a, r) => a + Number(r.rowsAffected ?? 0), 0);
+}
+
+const total = (await first<{ n: number }>(
+  "SELECT COUNT(*) AS n FROM assessments WHERE deleted_at IS NULL",
+))!.n;
 console.log(`inserted ${inserted} rows - ${total} live records total`);

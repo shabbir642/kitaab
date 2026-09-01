@@ -16,6 +16,7 @@ export default async function NewRecordModal({
 }) {
   const { mode } = await searchParams;
   const paste = mode === "paste";
+  const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
 
   return (
     <Modal
@@ -33,7 +34,7 @@ export default async function NewRecordModal({
       {paste ? (
         <PasteForm />
       ) : (
-        <RecordForm locations={allLocations()} assessors={allAssessors()} />
+        <RecordForm locations={locations} assessors={assessors} />
       )}
     </Modal>
   );

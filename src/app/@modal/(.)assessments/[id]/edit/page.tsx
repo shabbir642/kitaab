@@ -12,15 +12,19 @@ export default async function EditRecordModal({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null;
+  const [record, locations, assessors] = await Promise.all([
+    Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null,
+    allLocations(),
+    allAssessors(),
+  ]);
   if (!record) notFound();
 
   return (
     <Modal title="Edit record" subtitle={record.assessmentId}>
       <RecordForm
         record={record}
-        locations={allLocations()}
-        assessors={allAssessors()}
+        locations={locations}
+        assessors={assessors}
         closeOnSave
       />
     </Modal>

@@ -67,7 +67,7 @@ export async function saveRecord(
   if (!parsed.success) {
     return { ok: false, message: "Fix the highlighted fields.", fieldErrors: flatten(parsed.error) };
   }
-  if (assessmentIdExists(parsed.data.assessmentId, id ?? undefined)) {
+  if (await assessmentIdExists(parsed.data.assessmentId, id ?? undefined)) {
     return {
       ok: false,
       message: "That assessment ID is already in use.",
@@ -76,12 +76,12 @@ export async function saveRecord(
   }
 
   if (id == null) {
-    const newId = createAssessment(parsed.data, "manual");
+    const newId = await createAssessment(parsed.data, "manual");
     revalidatePath("/assessments");
     redirect(`/assessments/${newId}?saved=1`);
   }
 
-  updateAssessment(id, parsed.data);
+  await updateAssessment(id, parsed.data);
   revalidatePath("/assessments");
   revalidatePath(`/assessments/${id}`);
   return { ok: true, message: "Saved." };
@@ -92,7 +92,7 @@ export async function deleteRecordsAction(fd: FormData): Promise<void> {
     .getAll("id")
     .map((v) => Number(v))
     .filter((n) => Number.isInteger(n) && n > 0);
-  deleteAssessments(ids);
+  await deleteAssessments(ids);
   revalidatePath("/assessments");
   const back = fd.get("returnTo");
   if (typeof back === "string" && back.startsWith("/")) redirect(back);
@@ -108,7 +108,7 @@ export async function bulkStatusAction(fd: FormData): Promise<void> {
   const value = String(fd.get("value") ?? "");
   const allowed: readonly string[] =
     field === "survey_status" ? SURVEY_STATUSES : COMPLETION_STATUSES;
-  if (allowed.includes(value)) bulkSetStatus(ids, field, value);
+  if (allowed.includes(value)) await bulkSetStatus(ids, field, value);
   revalidatePath("/assessments");
   const back = fd.get("returnTo");
   if (typeof back === "string" && back.startsWith("/")) redirect(back);
@@ -169,12 +169,12 @@ export async function pasteRecordsAction(
       rejected.push({ line: i + 1, raw: line, reason: "Duplicate assessment ID within this paste" });
       continue;
     }
-    if (assessmentIdExists(key)) {
+    if (await assessmentIdExists(key)) {
       rejected.push({ line: i + 1, raw: line, reason: "Assessment ID already exists" });
       continue;
     }
     seenInBatch.add(key);
-    createAssessment(parsed.data, "manual");
+    await createAssessment(parsed.data, "manual");
     created++;
   }
 
@@ -214,7 +214,7 @@ export async function addNoteAction(_prev: FormState, fd: FormData): Promise<For
   if (!body) return { ok: false, message: "Write something first." };
   if (body.length > 8000) return { ok: false, message: "That note is too long (8000 characters max)." };
 
-  addNote(id, body);
+  await addNote(id, body);
   revalidateRecord(id);
   return { ok: true };
 }
@@ -223,7 +223,7 @@ export async function deleteNoteAction(fd: FormData): Promise<void> {
   const id = recordId(fd);
   const noteId = Number(fd.get("noteId"));
   if (id == null || !Number.isInteger(noteId)) return;
-  deleteNote(noteId, id);
+  await deleteNote(noteId, id);
   revalidateRecord(id);
 }
 
@@ -235,7 +235,7 @@ export async function updateFieldAction(
   if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
   if (!(field in INLINE_FIELDS)) return { ok: false, message: "Unknown field." };
   const trimmed = value.trim();
-  updateInlineField(id, field, trimmed === "" ? null : trimmed);
+  await updateInlineField(id, field, trimmed === "" ? null : trimmed);
   revalidateRecord(id);
   return { ok: true };
 }
@@ -251,7 +251,7 @@ export async function setExtraAction(
   if (name.length > 64) return { ok: false, message: "Field name is too long (64 characters max)." };
   if (value.length > 2000) return { ok: false, message: "Value is too long (2000 characters max)." };
 
-  setExtra(id, name, value.trim());
+  await setExtra(id, name, value.trim());
   revalidateRecord(id);
   return { ok: true };
 }
@@ -260,6 +260,6 @@ export async function removeExtraAction(fd: FormData): Promise<void> {
   const id = recordId(fd);
   const key = String(fd.get("key") ?? "");
   if (id == null || !key) return;
-  removeExtra(id, key);
+  await removeExtra(id, key);
   revalidateRecord(id);
 }

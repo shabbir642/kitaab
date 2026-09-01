@@ -5,8 +5,8 @@
 A local dashboard for survey assessment records: create, edit and delete records,
 scan them in a dense filterable list, and see the numbers behind them.
 
-Everything runs on your own machine. The whole dataset is a single SQLite file
-under `data/`.
+Runs on your own machine against a single SQLite file, or deployed against
+Turso — same engine, same SQL, one environment variable apart.
 
 ## Running it
 
@@ -15,6 +15,9 @@ pnpm install
 pnpm seed        # optional: 420 sample records to look at
 pnpm dev         # http://127.0.0.1:3000
 ```
+
+No database setup: with `KITAAB_DB_URL` unset the app uses a local SQLite file
+at `data/app.db` and creates it on first query.
 
 For day-to-day use:
 
@@ -31,9 +34,11 @@ that without adding authentication first.
 | `pnpm dev` | dev server with hot reload |
 | `pnpm build` / `pnpm start` | production build and serve |
 | `pnpm seed [n] [--reset]` | insert sample records (`--reset` clears first) |
-| `pnpm backup` | consistent snapshot into `backups/` |
+| `pnpm db:push` | apply the schema to whatever `KITAAB_DB_URL` points at |
+| `pnpm backup` | consistent snapshot into `backups/` (local file only) |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
+| `pnpm test:ui` | boots a server on a throwaway database and runs every browser suite against it |
 | `pnpm typecheck` / `pnpm lint` | types and lint |
 
 ## What's in it
@@ -101,7 +106,7 @@ that without adding authentication first.
 
 | Piece | Choice | Why |
 |---|---|---|
-| Store | SQLite via Node's built-in `node:sqlite` | one file to back up, no daemon, no native build step |
+| Store | libSQL — a local SQLite file in dev, Turso when deployed | same engine and the same SQL in both places, including FTS5 |
 | Search | FTS5 external-content index kept in sync by triggers | real keyword search without duplicating the rows |
 | Framework | Next.js App Router, server components | filtering, sorting and paging happen in SQL, not in the browser |
 | Mutations | server actions | no hand-written API layer for CRUD |
@@ -152,6 +157,38 @@ Spreadsheet import is deliberately out of scope for now. When it lands it needs
 header mapping with saved profiles, a dry-run diff before committing, and a
 quarantine for rows that fail validation — the paste box is a stopgap, not that.
 
+## Deploying
+
+The app runs against **Turso** in production and a plain SQLite file locally.
+Turso is libSQL, so the SQL — the FTS5 search included — is identical either
+way; only `KITAAB_DB_URL` differs.
+
+```bash
+turso db create kitaab
+turso db tokens create kitaab                       # copy the token
+
+KITAAB_DB_URL=libsql://kitaab-<org>.turso.io \
+KITAAB_DB_TOKEN=<token> \
+  pnpm db:push                                      # apply the schema once
+```
+
+Then set `KITAAB_DB_URL` and `KITAAB_DB_TOKEN` as environment variables on the
+host (on Vercel: Project → Settings → Environment Variables) and deploy.
+
+Two things worth knowing:
+
+- **A remote database is never migrated implicitly.** A local file creates and
+  migrates itself so `pnpm dev` is zero-setup; a hosted one only changes when
+  you run `pnpm db:push` at it deliberately.
+- **Every query is a network round trip once deployed.** Locally a query is a
+  ~0.1 ms file read, so the sequential style cost nothing; over a network it
+  costs 20–60 ms each. The pages therefore issue their independent reads with
+  `Promise.all` — the records list fires six at once, analytics ten — which
+  turns roughly ten sequential trips into two rounds. Keep that shape when
+  adding queries to a page.
+- `pnpm backup` only snapshots a local file. For Turso, use its own dump:
+  `turso db shell kitaab .dump > backups/kitaab-$(date +%F).sql`
+
 ## Sharing it temporarily
 
 To let someone else poke at it without deploying anything:
@@ -174,7 +211,7 @@ fine for a throwaway tunnel over sample data; it is not fine for real records.
 ## Layout
 
 ```
-src/lib/db.ts          SQLite connection, schema, FTS triggers
+src/lib/db.ts          libSQL client, schema, FTS triggers, query helpers
 src/lib/schema.ts      phases, status vocabulary, zod validation, warnings
 src/lib/queries.ts     filtering, CRUD, facets, analytics aggregates
 src/lib/filters.ts     URL <-> filter state
@@ -182,5 +219,6 @@ src/lib/views.ts       saved views, active-view matching, page headings
 src/app/actions.ts     server actions (save, delete, bulk status, paste)
 src/components/        rail, palette, search, sort, chips, table, notes, charts
 src/app/@modal/        the intercepted route that makes "new record" a modal
-scripts/               seed, backup, check
+scripts/               seed, backup, check, db:push
+scripts/ui/            browser suites + the runner that isolates them
 ```

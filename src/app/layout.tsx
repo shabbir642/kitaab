@@ -15,9 +15,9 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children, modal }: LayoutProps<"/">) {
   // The rail's counts are absolute, so they are read once per request here
-  // rather than threaded through every page.
-  const counts = railCounts();
-  const locations = locationCounts(20);
+  // rather than threaded through every page. Independent reads go together:
+  // over a network every await is a round trip.
+  const [counts, locations] = await Promise.all([railCounts(), locationCounts(20)]);
 
   return (
     <html

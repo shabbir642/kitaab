@@ -33,21 +33,44 @@ export default async function AnalyticsPage({
   const filters = parseFilters(raw);
 
   const scope = headerFor(filters);
-  const s = summary(filters);
-  const survey = statusBreakdown(filters, "survey");
-  const completion = statusBreakdown(filters, "completion");
-  const activity = monthlyActivity(filters, 12);
-  const locations = byLocation(filters, 8).map((l) => ({
+
+  // Every figure on this page is an independent aggregate, so they all go at
+  // once rather than one round trip after another.
+  const [
+    s,
+    survey,
+    completion,
+    activity,
+    byLocationRows,
+    surveyFacet,
+    completionFacet,
+    locationFacet,
+    flags,
+    allLocationNames,
+  ] = await Promise.all([
+    summary(filters),
+    statusBreakdown(filters, "survey"),
+    statusBreakdown(filters, "completion"),
+    monthlyActivity(filters, 12),
+    byLocation(filters, 8),
+    facetCounts(filters, "surveyStatus"),
+    facetCounts(filters, "completionStatus"),
+    facetCounts(filters, "location"),
+    flagCounts(filters),
+    allLocations(),
+  ]);
+
+  const locations = byLocationRows.map((l) => ({
     location: l.location,
     completed: l.completed,
     open: l.total - l.completed,
   }));
 
   const facets = {
-    surveyStatus: Object.fromEntries(facetCounts(filters, "surveyStatus")),
-    completionStatus: Object.fromEntries(facetCounts(filters, "completionStatus")),
-    location: Object.fromEntries(facetCounts(filters, "location")),
-    flags: flagCounts(filters),
+    surveyStatus: Object.fromEntries(surveyFacet),
+    completionStatus: Object.fromEntries(completionFacet),
+    location: Object.fromEntries(locationFacet),
+    flags,
   };
 
   return (
@@ -74,7 +97,7 @@ export default async function AnalyticsPage({
       {/* One filter row above everything it scopes. */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={filters.q} />
-        <FilterChips filters={filters} facets={facets} locations={allLocations()} />
+        <FilterChips filters={filters} facets={facets} locations={allLocationNames} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">

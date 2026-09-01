@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get("q") ?? "";
   if (q.trim().length < 2) return NextResponse.json({ records: [] });
 
-  const records = quickSearch(q, 6).map((r) => ({
+  const records = (await quickSearch(q, 6)).map((r) => ({
     id: r.id,
     assessmentId: r.assessmentId,
     name: r.name,

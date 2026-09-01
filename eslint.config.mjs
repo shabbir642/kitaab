@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // the UI test runner's own build directory (see next.config.ts)
+    ".next-test/**",
   ]),
 ]);
 

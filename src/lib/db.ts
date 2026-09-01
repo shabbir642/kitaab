@@ -1,19 +1,45 @@
-import { DatabaseSync } from "node:sqlite";
-import type { SQLInputValue, StatementSync } from "node:sqlite";
+import { createClient, type Client, type InValue, type ResultSet } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 
 /* ---------------------------------------------------------------------------
-   Local SQLite store.
+   Data store.
 
-   Uses Node's built-in `node:sqlite` - no native build step, no daemon, no
-   Docker. The whole dataset is one file you can copy to back up.
+   One client, two homes:
+     local dev  -> KITAAB_DB_URL unset, so a plain SQLite file under data/
+     deployed   -> KITAAB_DB_URL=libsql://... plus KITAAB_DB_TOKEN (Turso)
+
+   Turso is libSQL, which is SQLite, so every statement in queries.ts is the
+   same in both places - including the FTS5 index.
 --------------------------------------------------------------------------- */
 
-export const DB_PATH =
-  process.env.KITAAB_DB_PATH ?? path.join(process.cwd(), "data", "app.db");
+const LOCAL_FILE = path.join(process.cwd(), "data", "app.db");
 
-const SCHEMA = `
+export const DB_URL = process.env.KITAAB_DB_URL ?? `file:${LOCAL_FILE}`;
+export const IS_LOCAL_FILE = DB_URL.startsWith("file:");
+
+function open(): Client {
+  if (IS_LOCAL_FILE) {
+    fs.mkdirSync(path.dirname(DB_URL.slice("file:".length)), { recursive: true });
+  }
+  return createClient({
+    url: DB_URL,
+    authToken: process.env.KITAAB_DB_TOKEN,
+    // Pin integers to JS numbers so row shapes are the same in both homes.
+    intMode: "number",
+  });
+}
+
+// Survive dev-server hot reloads without leaking connections.
+const globalForDb = globalThis as unknown as {
+  __kitaabClient?: Client;
+  __kitaabSchema?: Promise<void>;
+};
+
+export const db: Client = globalForDb.__kitaabClient ?? open();
+if (process.env.NODE_ENV !== "production") globalForDb.__kitaabClient = db;
+
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assessments (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   assessment_id     TEXT    NOT NULL,
@@ -82,24 +108,56 @@ CREATE TRIGGER IF NOT EXISTS assessments_au AFTER UPDATE ON assessments BEGIN
 END;
 `;
 
-function open(): DatabaseSync {
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const db = new DatabaseSync(DB_PATH);
-  db.exec("PRAGMA journal_mode = WAL");
-  db.exec("PRAGMA foreign_keys = ON");
-  db.exec("PRAGMA busy_timeout = 5000");
-  db.exec(SCHEMA);
-  return db;
+/** Applies the schema. Idempotent - every statement is IF NOT EXISTS. */
+export async function pushSchema(): Promise<void> {
+  await db.executeMultiple(SCHEMA);
 }
 
-// Survive dev-server hot reloads without leaking connections.
-const globalForDb = globalThis as unknown as { __kitaabDb?: DatabaseSync };
-
-export const db: DatabaseSync = globalForDb.__kitaabDb ?? open();
-if (process.env.NODE_ENV !== "production") globalForDb.__kitaabDb = db;
-
-/** node:sqlite returns null-prototype objects; spread them so React/JSON and
- *  property access behave normally. */
-export function rows<T>(stmt: StatementSync, ...args: SQLInputValue[]): T[] {
-  return stmt.all(...args).map((r) => ({ ...r })) as T[];
+/** A local file is created and migrated on demand, which keeps `pnpm dev`
+ *  zero-setup. A remote database is not touched implicitly: run
+ *  `pnpm db:push` against it deliberately. */
+function ensureSchema(): Promise<void> {
+  if (!IS_LOCAL_FILE) return Promise.resolve();
+  globalForDb.__kitaabSchema ??= pushSchema();
+  return globalForDb.__kitaabSchema;
 }
+
+/* ---------------------------------------------------------------------------
+   Query helpers
+
+   libSQL hands back a column list plus positional rows; these rebuild plain
+   objects from it so the rest of the app never sees the driver's row type.
+--------------------------------------------------------------------------- */
+
+function toObjects<T>(rs: ResultSet): T[] {
+  return rs.rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    rs.columns.forEach((column, i) => {
+      out[column] = row[i];
+    });
+    return out as T;
+  });
+}
+
+export async function all<T>(sql: string, args: InValue[] = []): Promise<T[]> {
+  await ensureSchema();
+  return toObjects<T>(await db.execute({ sql, args }));
+}
+
+export async function first<T>(sql: string, args: InValue[] = []): Promise<T | undefined> {
+  return (await all<T>(sql, args))[0];
+}
+
+export async function run(
+  sql: string,
+  args: InValue[] = [],
+): Promise<{ changes: number; lastInsertRowid: number }> {
+  await ensureSchema();
+  const rs = await db.execute({ sql, args });
+  return {
+    changes: Number(rs.rowsAffected ?? 0),
+    lastInsertRowid: Number(rs.lastInsertRowid ?? 0),
+  };
+}
+
+export type { InValue };

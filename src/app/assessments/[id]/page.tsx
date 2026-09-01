@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null;
+  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
   return { title: record ? record.assessmentId : "Record" };
 }
 
@@ -36,10 +36,14 @@ export default async function RecordPage({
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) notFound();
 
-  const record = getAssessment(numericId);
+  // The notes key off the id in the URL, not off the record, so both reads go
+  // together.
+  const [record, notes] = await Promise.all([
+    getAssessment(numericId),
+    listNotes(numericId),
+  ]);
   if (!record) notFound();
 
-  const notes = listNotes(record.id);
   const issues = warningsFor(record);
   const today = todayIso();
 

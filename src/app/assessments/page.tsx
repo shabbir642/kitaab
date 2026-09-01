@@ -27,14 +27,25 @@ export default async function AssessmentsPage({
 }) {
   const raw = await searchParams;
   const filters = parseFilters(raw);
-  const result = listAssessments(filters);
   const { title, description } = headerFor(filters);
 
+  // Six independent reads. Sequentially that is six network round trips on a
+  // hosted database, so they go together.
+  const [result, surveyFacet, completionFacet, locationFacet, flags, locations] =
+    await Promise.all([
+      listAssessments(filters),
+      facetCounts(filters, "surveyStatus"),
+      facetCounts(filters, "completionStatus"),
+      facetCounts(filters, "location"),
+      flagCounts(filters),
+      allLocations(),
+    ]);
+
   const facets = {
-    surveyStatus: Object.fromEntries(facetCounts(filters, "surveyStatus")),
-    completionStatus: Object.fromEntries(facetCounts(filters, "completionStatus")),
-    location: Object.fromEntries(facetCounts(filters, "location")),
-    flags: flagCounts(filters),
+    surveyStatus: Object.fromEntries(surveyFacet),
+    completionStatus: Object.fromEntries(completionFacet),
+    location: Object.fromEntries(locationFacet),
+    flags,
   };
 
   const today = todayIso();
@@ -88,7 +99,7 @@ export default async function AssessmentsPage({
 
       <div className="flex flex-wrap items-center gap-2 pb-3">
         <SearchInput value={filters.q} />
-        <FilterChips filters={filters} facets={facets} locations={allLocations()} />
+        <FilterChips filters={filters} facets={facets} locations={locations} />
         <span className="ml-auto">
           <SortMenu sorts={filters.sorts} />
         </span>

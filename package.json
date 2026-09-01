@@ -11,9 +11,12 @@
     "typecheck": "tsc --noEmit",
     "check": "node --import ./scripts/register.mjs scripts/check.ts",
     "backup": "node --import ./scripts/register.mjs scripts/backup.ts",
-    "e2e": "node scripts/e2e.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "db:push": "node --import ./scripts/register.mjs scripts/db-push.ts",
+    "test:ui": "node scripts/ui/run-all.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.34.0",

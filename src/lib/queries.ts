@@ -1,7 +1,5 @@
-import { db, rows } from "./db";
-import type { SQLInputValue } from "node:sqlite";
-import type { Filters } from "./filters";
-import { DEFAULT_SORTS, SORTABLE } from "./filters";
+import { all, first, run, type InValue } from "./db";
+import { DEFAULT_SORTS, SORTABLE, type Filters } from "./filters";
 import {
   OVERDUE_DAYS,
   PHASES,
@@ -59,6 +57,8 @@ const SELECT_COLS = `id, assessment_id, name, location, assessor, survey_date,
   survey_status, completion_date, completion_status, remarks, origin, extras,
   created_at, updated_at`;
 
+const now = () => new Date().toISOString();
+
 /* ---------------------------------------------------------------------------
    Derived SQL expressions - single source of truth so the list, the filter
    facets and the analytics page can never disagree about what "overdue" means.
@@ -100,9 +100,9 @@ function placeholders(n: number): string {
   return Array.from({ length: n }, () => "?").join(", ");
 }
 
-export function buildWhere(f: Filters): { sql: string; params: SQLInputValue[] } {
+export function buildWhere(f: Filters): { sql: string; params: InValue[] } {
   const clauses: string[] = ["deleted_at IS NULL"];
-  const params: SQLInputValue[] = [];
+  const params: InValue[] = [];
 
   const match = f.q ? ftsQuery(f.q) : null;
   if (match) {
@@ -146,6 +146,16 @@ export function buildWhere(f: Filters): { sql: string; params: SQLInputValue[] }
   return { sql: clauses.join("\n  AND "), params };
 }
 
+/** ORDER BY for a multi-level sort. NULLS LAST at every level regardless of
+ *  direction: an empty date is "unknown", not "oldest". */
+function orderBy(f: Filters): string {
+  const levels = (f.sorts.length ? f.sorts : DEFAULT_SORTS).map((s) => {
+    const col = SORTABLE[s.key];
+    return `(${col} IS NULL) ASC, ${col} ${s.dir === "asc" ? "ASC" : "DESC"}`;
+  });
+  return [...levels, "id DESC"].join(", ");
+}
+
 /* ---------------------------------------------------------------------------
    Listing
 --------------------------------------------------------------------------- */
@@ -158,37 +168,27 @@ export type ListResult = {
   pageCount: number;
 };
 
-/** ORDER BY for a multi-level sort. NULLS LAST at every level regardless of
- *  direction: an empty date is "unknown", not "oldest". */
-function orderBy(f: Filters): string {
-  const levels = (f.sorts.length ? f.sorts : DEFAULT_SORTS).map((s) => {
-    const col = SORTABLE[s.key];
-    return `(${col} IS NULL) ASC, ${col} ${s.dir === "asc" ? "ASC" : "DESC"}`;
-  });
-  return [...levels, "id DESC"].join(", ");
-}
-
-export function listAssessments(f: Filters): ListResult {
+export async function listAssessments(f: Filters): Promise<ListResult> {
   const { sql: where, params } = buildWhere(f);
 
-  const total = Number(
-    (db.prepare(`SELECT COUNT(*) AS n FROM assessments WHERE ${where}`).get(...params) as { n: number }).n,
+  const counted = await first<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM assessments WHERE ${where}`,
+    params,
   );
+  const total = Number(counted?.n ?? 0);
 
   const pageCount = Math.max(1, Math.ceil(total / f.perPage));
   const page = Math.min(f.page, pageCount);
   const offset = (page - 1) * f.perPage;
 
-  const items = rows<Row>(
-    db.prepare(
+  const items = (
+    await all<Row>(
       `SELECT ${SELECT_COLS} FROM assessments
        WHERE ${where}
        ORDER BY ${orderBy(f)}
        LIMIT ? OFFSET ?`,
-    ),
-    ...params,
-    f.perPage,
-    offset,
+      [...params, f.perPage, offset],
+    )
   ).map(toAssessment);
 
   return { items, total, page, perPage: f.perPage, pageCount };
@@ -197,10 +197,10 @@ export function listAssessments(f: Filters): ListResult {
 /** Facet counts for the filter bar. Computed against every *other* facet but
  *  not against the facet's own selection, so a chip never shows "0" for the
  *  value you just picked. */
-export function facetCounts(
+export async function facetCounts(
   f: Filters,
   facet: "surveyStatus" | "completionStatus" | "location",
-): Map<string, number> {
+): Promise<Map<string, number>> {
   const cleared: Filters = { ...f, [facet]: [] } as Filters;
   const { sql: where, params } = buildWhere(cleared);
   const col =
@@ -209,133 +209,144 @@ export function facetCounts(
     : "location";
 
   const out = new Map<string, number>();
-  for (const r of rows<{ v: string | null; n: number }>(
-    db.prepare(
-      `SELECT ${col} AS v, COUNT(*) AS n FROM assessments
-       WHERE ${where} AND ${col} IS NOT NULL
-       GROUP BY ${col} ORDER BY n DESC`,
-    ),
-    ...params,
+  for (const r of await all<{ v: string | null; n: number }>(
+    `SELECT ${col} AS v, COUNT(*) AS n FROM assessments
+     WHERE ${where} AND ${col} IS NOT NULL
+     GROUP BY ${col} ORDER BY n DESC`,
+    params,
   )) {
     if (r.v != null) out.set(r.v, Number(r.n));
   }
   return out;
 }
 
-export function flagCounts(f: Filters): Record<string, number> {
+export async function flagCounts(f: Filters): Promise<Record<string, number>> {
   const { sql: where, params } = buildWhere({ ...f, flags: [] });
-  const r = db
-    .prepare(
-      `SELECT
-         SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)            AS overdue,
-         SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)           AS awaiting,
-         SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)         AS issues,
-         SUM(CASE WHEN completion_date IS NULL THEN 1 ELSE 0 END)   AS noCompletionDate,
-         SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)       AS unscheduled
-       FROM assessments WHERE ${where}`,
-    )
-    .get(...params) as Record<string, number | null>;
+  const r = await first<Record<string, number | null>>(
+    `SELECT
+       SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)            AS overdue,
+       SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)            AS awaiting,
+       SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)          AS issues,
+       SUM(CASE WHEN completion_date IS NULL THEN 1 ELSE 0 END)    AS noCompletionDate,
+       SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)        AS unscheduled
+     FROM assessments WHERE ${where}`,
+    params,
+  );
   return {
-    overdue: Number(r.overdue ?? 0),
-    awaiting: Number(r.awaiting ?? 0),
-    issues: Number(r.issues ?? 0),
-    "no-completion-date": Number(r.noCompletionDate ?? 0),
-    unscheduled: Number(r.unscheduled ?? 0),
+    overdue: Number(r?.overdue ?? 0),
+    awaiting: Number(r?.awaiting ?? 0),
+    issues: Number(r?.issues ?? 0),
+    "no-completion-date": Number(r?.noCompletionDate ?? 0),
+    unscheduled: Number(r?.unscheduled ?? 0),
   };
 }
 
 /** Every location on record - the filter dropdown needs the full list, not
  *  just the ones surviving the current filter. */
-export function allLocations(): string[] {
-  return rows<{ location: string }>(
-    db.prepare(
+export async function allLocations(): Promise<string[]> {
+  return (
+    await all<{ location: string }>(
       `SELECT DISTINCT location FROM assessments
        WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
        ORDER BY location COLLATE NOCASE`,
-    ),
+    )
   ).map((r) => r.location);
+}
+
+export async function allAssessors(): Promise<string[]> {
+  return (
+    await all<{ assessor: string }>(
+      `SELECT DISTINCT assessor FROM assessments
+       WHERE deleted_at IS NULL AND assessor IS NOT NULL AND assessor <> ''
+       ORDER BY assessor COLLATE NOCASE`,
+    )
+  ).map((r) => r.assessor);
 }
 
 /* ---------------------------------------------------------------------------
    CRUD
 --------------------------------------------------------------------------- */
 
-export function getAssessment(id: number): Assessment | null {
-  const r = db
-    .prepare(`SELECT ${SELECT_COLS} FROM assessments WHERE id = ? AND deleted_at IS NULL`)
-    .get(id) as Row | undefined;
-  return r ? toAssessment({ ...r }) : null;
+export async function getAssessment(id: number): Promise<Assessment | null> {
+  const r = await first<Row>(
+    `SELECT ${SELECT_COLS} FROM assessments WHERE id = ? AND deleted_at IS NULL`,
+    [id],
+  );
+  return r ? toAssessment(r) : null;
 }
 
-export function assessmentIdExists(assessmentId: string, exceptId?: number): boolean {
-  const r = db
-    .prepare(
-      `SELECT id FROM assessments
-       WHERE assessment_id = ? AND deleted_at IS NULL AND id <> ?`,
-    )
-    .get(assessmentId, exceptId ?? -1) as { id: number } | undefined;
+export async function assessmentIdExists(
+  assessmentId: string,
+  exceptId?: number,
+): Promise<boolean> {
+  const r = await first<{ id: number }>(
+    `SELECT id FROM assessments
+     WHERE assessment_id = ? AND deleted_at IS NULL AND id <> ?`,
+    [assessmentId, exceptId ?? -1],
+  );
   return !!r;
 }
 
-export function createAssessment(input: AssessmentInput, origin: "manual" | "import" = "manual"): number {
-  const now = new Date().toISOString();
-  const info = db
-    .prepare(
-      `INSERT INTO assessments
-        (assessment_id, name, location, assessor, survey_date, survey_status,
-         completion_date, completion_status, remarks, origin, extras, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
-    )
-    .run(
+export async function createAssessment(
+  input: AssessmentInput,
+  origin: "manual" | "import" = "manual",
+): Promise<number> {
+  const stamp = now();
+  const info = await run(
+    `INSERT INTO assessments
+      (assessment_id, name, location, assessor, survey_date, survey_status,
+       completion_date, completion_status, remarks, origin, extras, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
+    [
       input.assessmentId, input.name, input.location, input.assessor,
       input.surveyDate, input.surveyStatus ?? null,
       input.completionDate, input.completionStatus ?? null,
-      input.remarks, origin, now, now,
-    );
-  return Number(info.lastInsertRowid);
+      input.remarks, origin, stamp, stamp,
+    ],
+  );
+  return info.lastInsertRowid;
 }
 
-export function updateAssessment(id: number, input: AssessmentInput): void {
-  db.prepare(
+export async function updateAssessment(id: number, input: AssessmentInput): Promise<void> {
+  await run(
     `UPDATE assessments SET
        assessment_id = ?, name = ?, location = ?, assessor = ?,
        survey_date = ?, survey_status = ?, completion_date = ?,
        completion_status = ?, remarks = ?, updated_at = ?
      WHERE id = ? AND deleted_at IS NULL`,
-  ).run(
-    input.assessmentId, input.name, input.location, input.assessor,
-    input.surveyDate, input.surveyStatus ?? null,
-    input.completionDate, input.completionStatus ?? null,
-    input.remarks, new Date().toISOString(), id,
+    [
+      input.assessmentId, input.name, input.location, input.assessor,
+      input.surveyDate, input.surveyStatus ?? null,
+      input.completionDate, input.completionStatus ?? null,
+      input.remarks, now(), id,
+    ],
   );
 }
 
-/** Soft delete - rows stay recoverable straight from the DB file. */
-export function deleteAssessments(ids: number[]): number {
+/** Soft delete - rows stay recoverable straight from the database. */
+export async function deleteAssessments(ids: number[]): Promise<number> {
   if (!ids.length) return 0;
-  const now = new Date().toISOString();
-  const info = db
-    .prepare(
-      `UPDATE assessments SET deleted_at = ?, updated_at = ?
-       WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
-    )
-    .run(now, now, ...ids);
-  return Number(info.changes);
+  const stamp = now();
+  const info = await run(
+    `UPDATE assessments SET deleted_at = ?, updated_at = ?
+     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
+    [stamp, stamp, ...ids],
+  );
+  return info.changes;
 }
 
-export function bulkSetStatus(
+export async function bulkSetStatus(
   ids: number[],
   field: "survey_status" | "completion_status",
   value: string,
-): number {
+): Promise<number> {
   if (!ids.length) return 0;
-  const info = db
-    .prepare(
-      `UPDATE assessments SET ${field} = ?, updated_at = ?
-       WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
-    )
-    .run(value, new Date().toISOString(), ...ids);
-  return Number(info.changes);
+  const info = await run(
+    `UPDATE assessments SET ${field} = ?, updated_at = ?
+     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
+    [value, now(), ...ids],
+  );
+  return info.changes;
 }
 
 /* ---------------------------------------------------------------------------
@@ -352,10 +363,12 @@ export type Summary = {
   medianDaysToComplete: number | null;
 };
 
-export function summary(f: Filters): Summary {
+export async function summary(f: Filters): Promise<Summary> {
   const { sql: where, params } = buildWhere(f);
-  const r = db
-    .prepare(
+
+  // Independent queries, so they go together rather than one after the other.
+  const [r, durationRows] = await Promise.all([
+    first<Record<string, number | null>>(
       `SELECT
          COUNT(*) AS total,
          SUM(CASE WHEN survey_status = 'Completed' THEN 1 ELSE 0 END)     AS surveysDone,
@@ -364,20 +377,19 @@ export function summary(f: Filters): Summary {
          SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)                  AS overdue,
          SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)               AS issues
        FROM assessments WHERE ${where}`,
-    )
-    .get(...params) as Record<string, number | null>;
-
-  const durations = rows<{ d: number }>(
-    db.prepare(
+      params,
+    ),
+    all<{ d: number }>(
       `SELECT julianday(completion_date) - julianday(survey_date) AS d
        FROM assessments
        WHERE ${where} AND survey_date IS NOT NULL AND completion_date IS NOT NULL
          AND completion_status = 'Completed'
        ORDER BY d`,
+      params,
     ),
-    ...params,
-  ).map((x) => Number(x.d));
+  ]);
 
+  const durations = durationRows.map((x) => Number(x.d));
   const median =
     durations.length === 0
       ? null
@@ -386,31 +398,34 @@ export function summary(f: Filters): Summary {
         : (durations[durations.length / 2 - 1] + durations[durations.length / 2]) / 2;
 
   return {
-    total: Number(r.total ?? 0),
-    surveysDone: Number(r.surveysDone ?? 0),
-    completionsDone: Number(r.completionsDone ?? 0),
-    inFlight: Number(r.inFlight ?? 0),
-    overdue: Number(r.overdue ?? 0),
-    issues: Number(r.issues ?? 0),
+    total: Number(r?.total ?? 0),
+    surveysDone: Number(r?.surveysDone ?? 0),
+    completionsDone: Number(r?.completionsDone ?? 0),
+    inFlight: Number(r?.inFlight ?? 0),
+    overdue: Number(r?.overdue ?? 0),
+    issues: Number(r?.issues ?? 0),
     medianDaysToComplete: median == null ? null : Math.round(median),
   };
 }
 
 export type StatusSlice = { status: string; count: number };
 
-export function statusBreakdown(f: Filters, phase: "survey" | "completion"): StatusSlice[] {
+export async function statusBreakdown(
+  f: Filters,
+  phase: "survey" | "completion",
+): Promise<StatusSlice[]> {
   const def = PHASES.find((p) => p.key === phase)!;
   const col = def.statusField === "surveyStatus" ? "survey_status" : "completion_status";
   const { sql: where, params } = buildWhere(f);
+
   const counts = new Map<string, number>();
-  for (const r of rows<{ v: string | null; n: number }>(
-    db.prepare(
-      `SELECT ${col} AS v, COUNT(*) AS n FROM assessments WHERE ${where} GROUP BY ${col}`,
-    ),
-    ...params,
+  for (const r of await all<{ v: string | null; n: number }>(
+    `SELECT ${col} AS v, COUNT(*) AS n FROM assessments WHERE ${where} GROUP BY ${col}`,
+    params,
   )) {
     counts.set(r.v ?? "(blank)", Number(r.n));
   }
+
   const ordered: StatusSlice[] = def.statuses.map((s) => ({
     status: s,
     count: counts.get(s) ?? 0,
@@ -424,23 +439,25 @@ export type MonthPoint = { month: string; surveys: number; completions: number }
 
 /** Monthly survey vs completion counts over a contiguous month axis (gaps are
  *  filled with zeros, so a quiet month reads as a dip rather than vanishing). */
-export function monthlyActivity(f: Filters, months = 12): MonthPoint[] {
+export async function monthlyActivity(f: Filters, months = 12): Promise<MonthPoint[]> {
   const { sql: where, params } = buildWhere(f);
-  const grab = (col: string) => {
+
+  const grab = async (col: string) => {
     const m = new Map<string, number>();
-    for (const r of rows<{ m: string; n: number }>(
-      db.prepare(
-        `SELECT strftime('%Y-%m', ${col}) AS m, COUNT(*) AS n FROM assessments
-         WHERE ${where} AND ${col} IS NOT NULL GROUP BY m`,
-      ),
-      ...params,
+    for (const r of await all<{ m: string; n: number }>(
+      `SELECT strftime('%Y-%m', ${col}) AS m, COUNT(*) AS n FROM assessments
+       WHERE ${where} AND ${col} IS NOT NULL GROUP BY m`,
+      params,
     )) {
       if (r.m) m.set(r.m, Number(r.n));
     }
     return m;
   };
-  const surveys = grab("survey_date");
-  const completions = grab("completion_date");
+
+  const [surveys, completions] = await Promise.all([
+    grab("survey_date"),
+    grab("completion_date"),
+  ]);
 
   const keys = [...new Set([...surveys.keys(), ...completions.keys()])].sort();
   if (keys.length === 0) return [];
@@ -461,26 +478,26 @@ export function monthlyActivity(f: Filters, months = 12): MonthPoint[] {
 
 export type LocationRow = { location: string; total: number; completed: number };
 
-export function byLocation(f: Filters, top = 8): LocationRow[] {
+export async function byLocation(f: Filters, top = 8): Promise<LocationRow[]> {
   const { sql: where, params } = buildWhere(f);
-  const all = rows<{ location: string | null; total: number; completed: number }>(
-    db.prepare(
+  const rows = (
+    await all<{ location: string | null; total: number; completed: number }>(
       `SELECT COALESCE(NULLIF(location, ''), '(unspecified)') AS location,
               COUNT(*) AS total,
               SUM(CASE WHEN completion_status = 'Completed' THEN 1 ELSE 0 END) AS completed
        FROM assessments WHERE ${where}
        GROUP BY location ORDER BY total DESC`,
-    ),
-    ...params,
+      params,
+    )
   ).map((r) => ({
     location: r.location ?? "(unspecified)",
     total: Number(r.total),
     completed: Number(r.completed),
   }));
 
-  if (all.length <= top) return all;
-  const head = all.slice(0, top);
-  const tail = all.slice(top);
+  if (rows.length <= top) return rows;
+  const head = rows.slice(0, top);
+  const tail = rows.slice(top);
   head.push({
     location: `Other (${tail.length})`,
     total: tail.reduce((a, b) => a + b.total, 0),
@@ -490,25 +507,15 @@ export function byLocation(f: Filters, top = 8): LocationRow[] {
 }
 
 /** Full filtered set, unpaginated - used by CSV export. */
-export function exportRows(f: Filters): Assessment[] {
+export async function exportRows(f: Filters): Promise<Assessment[]> {
   const { sql: where, params } = buildWhere(f);
-  return rows<Row>(
-    db.prepare(
+  return (
+    await all<Row>(
       `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
        ORDER BY ${orderBy(f)}`,
-    ),
-    ...params,
+      params,
+    )
   ).map(toAssessment);
-}
-
-export function allAssessors(): string[] {
-  return rows<{ assessor: string }>(
-    db.prepare(
-      `SELECT DISTINCT assessor FROM assessments
-       WHERE deleted_at IS NULL AND assessor IS NOT NULL AND assessor <> ''
-       ORDER BY assessor COLLATE NOCASE`,
-    ),
-  ).map((r) => r.assessor);
 }
 
 /* ---------------------------------------------------------------------------
@@ -526,53 +533,49 @@ export type RailCounts = {
   unscheduled: number;
 };
 
-export function railCounts(): RailCounts {
-  const r = db
-    .prepare(
-      `SELECT
-         COUNT(*)                                                  AS all_,
-         SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)           AS overdue,
-         SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)          AS awaiting,
-         SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)        AS issues,
-         SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)      AS unscheduled
-       FROM assessments WHERE deleted_at IS NULL`,
-    )
-    .get() as Record<string, number | null>;
+export async function railCounts(): Promise<RailCounts> {
+  const r = await first<Record<string, number | null>>(
+    `SELECT
+       COUNT(*)                                                  AS all_,
+       SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)           AS overdue,
+       SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)          AS awaiting,
+       SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)        AS issues,
+       SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)      AS unscheduled
+     FROM assessments WHERE deleted_at IS NULL`,
+  );
   return {
-    all: Number(r.all_ ?? 0),
-    overdue: Number(r.overdue ?? 0),
-    awaiting: Number(r.awaiting ?? 0),
-    issues: Number(r.issues ?? 0),
-    unscheduled: Number(r.unscheduled ?? 0),
+    all: Number(r?.all_ ?? 0),
+    overdue: Number(r?.overdue ?? 0),
+    awaiting: Number(r?.awaiting ?? 0),
+    issues: Number(r?.issues ?? 0),
+    unscheduled: Number(r?.unscheduled ?? 0),
   };
 }
 
-export function locationCounts(limit = 4): { location: string; count: number; total: number }[] {
-  const all = rows<{ location: string; n: number }>(
-    db.prepare(
-      `SELECT location, COUNT(*) AS n FROM assessments
-       WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
-       GROUP BY location ORDER BY n DESC, location COLLATE NOCASE`,
-    ),
+export async function locationCounts(
+  limit = 4,
+): Promise<{ location: string; count: number; total: number }[]> {
+  const rows = await all<{ location: string; n: number }>(
+    `SELECT location, COUNT(*) AS n FROM assessments
+     WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
+     GROUP BY location ORDER BY n DESC, location COLLATE NOCASE`,
   );
-  return all.slice(0, limit).map((r) => ({
+  return rows.slice(0, limit).map((r) => ({
     location: r.location,
     count: Number(r.n),
-    total: all.length,
+    total: rows.length,
   }));
 }
 
 /** Small, fast lookup for the command palette. */
-export function quickSearch(q: string, limit = 6): Assessment[] {
-  const f = { ...EMPTY_FILTERS, q };
-  const { sql: where, params } = buildWhere(f as Filters);
-  return rows<Row>(
-    db.prepare(
+export async function quickSearch(q: string, limit = 6): Promise<Assessment[]> {
+  const { sql: where, params } = buildWhere({ ...EMPTY_FILTERS, q });
+  return (
+    await all<Row>(
       `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
        ORDER BY updated_at DESC LIMIT ?`,
-    ),
-    ...params,
-    limit,
+      [...params, limit],
+    )
   ).map(toAssessment);
 }
 
@@ -597,14 +600,14 @@ export type Note = {
   createdAt: string;
 };
 
-export function listNotes(assessmentId: number): Note[] {
-  return rows<{ id: number; assessment_id: number; body: string; created_at: string }>(
-    db.prepare(
+export async function listNotes(assessmentId: number): Promise<Note[]> {
+  return (
+    await all<{ id: number; assessment_id: number; body: string; created_at: string }>(
       `SELECT id, assessment_id, body, created_at FROM notes
        WHERE assessment_id = ? AND deleted_at IS NULL
        ORDER BY created_at DESC, id DESC`,
-    ),
-    assessmentId,
+      [assessmentId],
+    )
   ).map((r) => ({
     id: r.id,
     assessmentId: r.assessment_id,
@@ -613,21 +616,21 @@ export function listNotes(assessmentId: number): Note[] {
   }));
 }
 
-export function addNote(assessmentId: number, body: string): number {
-  const info = db
-    .prepare(`INSERT INTO notes (assessment_id, body, created_at) VALUES (?, ?, ?)`)
-    .run(assessmentId, body, new Date().toISOString());
-  return Number(info.lastInsertRowid);
+export async function addNote(assessmentId: number, body: string): Promise<number> {
+  const info = await run(
+    `INSERT INTO notes (assessment_id, body, created_at) VALUES (?, ?, ?)`,
+    [assessmentId, body, now()],
+  );
+  return info.lastInsertRowid;
 }
 
-export function deleteNote(noteId: number, assessmentId: number): number {
-  const info = db
-    .prepare(
-      `UPDATE notes SET deleted_at = ?
-       WHERE id = ? AND assessment_id = ? AND deleted_at IS NULL`,
-    )
-    .run(new Date().toISOString(), noteId, assessmentId);
-  return Number(info.changes);
+export async function deleteNote(noteId: number, assessmentId: number): Promise<number> {
+  const info = await run(
+    `UPDATE notes SET deleted_at = ?
+     WHERE id = ? AND assessment_id = ? AND deleted_at IS NULL`,
+    [now(), noteId, assessmentId],
+  );
+  return info.changes;
 }
 
 /* ---------------------------------------------------------------------------
@@ -641,34 +644,39 @@ export function deleteNote(noteId: number, assessmentId: number): number {
 export const INLINE_FIELDS = { remarks: "remarks" } as const;
 export type InlineField = keyof typeof INLINE_FIELDS;
 
-export function updateInlineField(id: number, field: InlineField, value: string | null): void {
-  db.prepare(
+export async function updateInlineField(
+  id: number,
+  field: InlineField,
+  value: string | null,
+): Promise<void> {
+  await run(
     `UPDATE assessments SET ${INLINE_FIELDS[field]} = ?, updated_at = ?
      WHERE id = ? AND deleted_at IS NULL`,
-  ).run(value, new Date().toISOString(), id);
+    [value, now(), id],
+  );
 }
 
 /** Custom fields live in the `extras` JSON blob - the room a record has to
  *  carry information this app never modelled. */
-export function setExtra(id: number, key: string, value: string): void {
-  const current = getAssessment(id);
+export async function setExtra(id: number, key: string, value: string): Promise<void> {
+  const current = await getAssessment(id);
   if (!current) return;
   const next = { ...current.extras, [key]: value };
-  db.prepare(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`).run(
+  await run(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`, [
     JSON.stringify(next),
-    new Date().toISOString(),
+    now(),
     id,
-  );
+  ]);
 }
 
-export function removeExtra(id: number, key: string): void {
-  const current = getAssessment(id);
+export async function removeExtra(id: number, key: string): Promise<void> {
+  const current = await getAssessment(id);
   if (!current) return;
   const next = { ...current.extras };
   delete next[key];
-  db.prepare(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`).run(
+  await run(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`, [
     JSON.stringify(next),
-    new Date().toISOString(),
+    now(),
     id,
-  );
+  ]);
 }

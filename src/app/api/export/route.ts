@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     raw[key] = all.length > 1 ? all : all[0];
   }
 
-  const rows = exportRows(parseFilters(raw));
+  const rows = await exportRows(parseFilters(raw));
   const lines = [HEADERS.join(",")];
   for (const r of rows) {
     lines.push(

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null;
+  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
   return { title: record ? `Edit ${record.assessmentId}` : "Edit record" };
 }
 
@@ -20,7 +20,11 @@ export default async function EditRecordPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null;
+  const [record, locations, assessors] = await Promise.all([
+    Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null,
+    allLocations(),
+    allAssessors(),
+  ]);
   if (!record) notFound();
 
   return (
@@ -37,7 +41,7 @@ export default async function EditRecordPage({
         <p className="mt-0.5 font-mono text-xs text-ink-muted">{record.assessmentId}</p>
       </div>
       <div className="rounded-xl border border-hairline bg-surface p-5">
-        <RecordForm record={record} locations={allLocations()} assessors={allAssessors()} />
+        <RecordForm record={record} locations={locations} assessors={assessors} />
       </div>
     </div>
   );
