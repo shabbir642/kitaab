@@ -37,6 +37,7 @@ that without adding authentication first.
 | `pnpm db:push` | apply the schema to whatever `KITAAB_DB_URL` points at |
 | `pnpm trim [--keep N] [--yes]` | shrink to a small representative set; dry run without `--yes` |
 | `pnpm copy-up [--yes] [--replace]` | copy the local database up to the configured remote |
+| `pnpm smoke` | read/write smoke test, safe against production — creates one record and removes it |
 | `pnpm backup` | consistent snapshot into `backups/` (local file only) |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
@@ -189,6 +190,12 @@ Split across continents, every query pays the round trip twice.
 Because `.env.local` repoints everything at the live database, the app prints a
 warning on start when it is not using your local file, and `pnpm seed` refuses
 a remote target outright unless passed `--remote`.
+
+`pnpm smoke` is the one suite meant to be pointed at production: it checks
+reads, a write, the FTS triggers behind that write, and notes, using a single
+record it creates and then removes outright. It asserts nothing about how much
+data exists, so it is as meaningful against ten records as ten thousand.
+`pnpm check` and `pnpm test:ui` are not production-safe and say so.
 
 Two things worth knowing:
 
