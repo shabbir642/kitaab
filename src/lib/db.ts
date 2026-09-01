@@ -15,12 +15,24 @@ import path from "node:path";
    TURSO_DATABASE_URL / TURSO_AUTH_TOKEN are what Turso's Vercel integration
    injects, and they are read directly rather than copied into our own names:
    duplicated secrets go stale the first time the integration rotates one.
-   KITAAB_* still wins, so a script can point somewhere else for one command.
+
+   But `vercel env pull` writes those same names into .env.local, which Next
+   loads for `pnpm dev` too - so simply honouring them would silently point
+   local development at live data. They therefore only apply in production, or
+   when something asks for them on purpose:
+
+     KITAAB_DB_URL=...          an explicit target, always wins
+     KITAAB_USE_REMOTE=1        opt in to the injected Turso vars locally
+     NODE_ENV=production        a deployment, where they are the point
 --------------------------------------------------------------------------- */
 
 const LOCAL_FILE = path.join(process.cwd(), "data", "app.db");
 
-const REMOTE_URL = process.env.KITAAB_DB_URL ?? process.env.TURSO_DATABASE_URL;
+const IS_DEPLOYED = process.env.NODE_ENV === "production";
+const WANTS_REMOTE = IS_DEPLOYED || process.env.KITAAB_USE_REMOTE === "1";
+
+const REMOTE_URL =
+  process.env.KITAAB_DB_URL ?? (WANTS_REMOTE ? process.env.TURSO_DATABASE_URL : undefined);
 const AUTH_TOKEN = process.env.KITAAB_DB_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
 
 export const DB_URL = REMOTE_URL ?? `file:${LOCAL_FILE}`;

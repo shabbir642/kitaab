@@ -38,6 +38,7 @@ that without adding authentication first.
 | `pnpm trim [--keep N] [--yes]` | shrink to a small representative set; dry run without `--yes` |
 | `pnpm copy-up [--yes] [--replace]` | copy the local database up to the configured remote |
 | `pnpm smoke` | read/write smoke test, safe against production — creates one record and removes it |
+| `pnpm db:push:remote` / `pnpm smoke:remote` | the same, aimed at the deployment's database |
 | `pnpm backup` | consistent snapshot into `backups/` (local file only) |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
@@ -187,9 +188,17 @@ Put the database and the functions in the same region — Turso has
 `aws-ap-south-1` (Mumbai), and Vercel functions can be pinned to `bom1`.
 Split across continents, every query pays the round trip twice.
 
-Because `.env.local` repoints everything at the live database, the app prints a
-warning on start when it is not using your local file, and `pnpm seed` refuses
-a remote target outright unless passed `--remote`.
+`vercel env pull` writes those variables into `.env.local`, which Next loads
+for `pnpm dev` as well — so honouring them unconditionally would point local
+development at live data. They therefore apply only when `NODE_ENV=production`
+(a deployment) or when something opts in with `KITAAB_USE_REMOTE=1`, which is
+what the `:remote` scripts do. `KITAAB_DB_URL` remains an explicit override
+that wins everywhere, for pointing a single command at a scratch file.
+
+Two more guards, since the cost of getting this wrong is other people's data:
+the app prints a warning on start whenever it is not using the local file
+(naming the host, never the token), and `pnpm seed` refuses a remote target
+outright unless passed `--remote`.
 
 `pnpm smoke` is the one suite meant to be pointed at production: it checks
 reads, a write, the FTS triggers behind that write, and notes, using a single

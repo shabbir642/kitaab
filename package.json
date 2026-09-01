@@ -15,8 +15,10 @@
     "db:push": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/db-push.ts",
     "test:ui": "node scripts/ui/run-all.mjs",
     "trim": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/trim.ts",
-    "copy-up": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/copy-up.ts",
-    "smoke": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/smoke.ts"
+    "copy-up": "KITAAB_USE_REMOTE=1 node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/copy-up.ts",
+    "smoke": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/smoke.ts",
+    "db:push:remote": "KITAAB_USE_REMOTE=1 pnpm db:push",
+    "smoke:remote": "KITAAB_USE_REMOTE=1 pnpm smoke"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
