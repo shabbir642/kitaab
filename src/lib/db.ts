@@ -6,25 +6,47 @@ import path from "node:path";
    Data store.
 
    One client, two homes:
-     local dev  -> KITAAB_DB_URL unset, so a plain SQLite file under data/
-     deployed   -> KITAAB_DB_URL=libsql://... plus KITAAB_DB_TOKEN (Turso)
+     local dev  -> no database URL set, so a plain SQLite file under data/
+     deployed   -> a libsql:// URL plus a token (Turso)
 
    Turso is libSQL, which is SQLite, so every statement in queries.ts is the
    same in both places - including the FTS5 index.
+
+   TURSO_DATABASE_URL / TURSO_AUTH_TOKEN are what Turso's Vercel integration
+   injects, and they are read directly rather than copied into our own names:
+   duplicated secrets go stale the first time the integration rotates one.
+   KITAAB_* still wins, so a script can point somewhere else for one command.
 --------------------------------------------------------------------------- */
 
 const LOCAL_FILE = path.join(process.cwd(), "data", "app.db");
 
-export const DB_URL = process.env.KITAAB_DB_URL ?? `file:${LOCAL_FILE}`;
+const REMOTE_URL = process.env.KITAAB_DB_URL ?? process.env.TURSO_DATABASE_URL;
+const AUTH_TOKEN = process.env.KITAAB_DB_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
+
+export const DB_URL = REMOTE_URL ?? `file:${LOCAL_FILE}`;
 export const IS_LOCAL_FILE = DB_URL.startsWith("file:");
+
+/** Short, safe description of the target - never includes the token. */
+export function describeTarget(): string {
+  if (IS_LOCAL_FILE) return `local file ${DB_URL.slice("file:".length)}`;
+  try {
+    return `remote ${new URL(DB_URL).host}`;
+  } catch {
+    return "remote database";
+  }
+}
 
 function open(): Client {
   if (IS_LOCAL_FILE) {
     fs.mkdirSync(path.dirname(DB_URL.slice("file:".length)), { recursive: true });
+  } else if (process.env.NODE_ENV !== "production") {
+    // Pulling Vercel's env down for local work silently repoints dev at live
+    // data, so say so rather than letting it pass unnoticed.
+    console.warn(`\n  ⚠ Kitaab is using a ${describeTarget()} — not your local file.\n`);
   }
   return createClient({
     url: DB_URL,
-    authToken: process.env.KITAAB_DB_TOKEN,
+    authToken: AUTH_TOKEN,
     // Pin integers to JS numbers so row shapes are the same in both homes.
     intMode: "number",
   });

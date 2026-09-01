@@ -36,6 +36,7 @@ that without adding authentication first.
 | `pnpm seed [n] [--reset]` | insert sample records (`--reset` clears first) |
 | `pnpm db:push` | apply the schema to whatever `KITAAB_DB_URL` points at |
 | `pnpm trim [--keep N] [--yes]` | shrink to a small representative set; dry run without `--yes` |
+| `pnpm copy-up [--yes] [--replace]` | copy the local database up to the configured remote |
 | `pnpm backup` | consistent snapshot into `backups/` (local file only) |
 | `pnpm check` | verifies the validation, query and analytics layers |
 | `pnpm e2e [url]` | drives a real headless browser through create / edit / paste / bulk delete |
@@ -165,19 +166,29 @@ quarantine for rows that fail validation — the paste box is a stopgap, not tha
 
 The app runs against **Turso** in production and a plain SQLite file locally.
 Turso is libSQL, so the SQL — the FTS5 search included — is identical either
-way; only `KITAAB_DB_URL` differs.
+way; only the environment differs.
+
+Add **Turso Cloud** from the Vercel Marketplace and it provisions the database
+and injects `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. The app reads those
+names directly rather than copying them into its own, because a duplicated
+secret goes stale the first time the integration rotates it.
+
+To work against it from your machine:
 
 ```bash
-turso db create kitaab
-turso db tokens create kitaab                       # copy the token
-
-KITAAB_DB_URL=libsql://kitaab-<org>.turso.io \
-KITAAB_DB_TOKEN=<token> \
-  pnpm db:push                                      # apply the schema once
+npx vercel link                    # once, to attach this directory to the project
+npx vercel env pull .env.local     # writes the injected vars locally
+pnpm db:push                       # create the tables and the FTS index there
+pnpm copy-up --yes                 # move the local records up (dry runs without --yes)
 ```
 
-Then set `KITAAB_DB_URL` and `KITAAB_DB_TOKEN` as environment variables on the
-host (on Vercel: Project → Settings → Environment Variables) and deploy.
+Put the database and the functions in the same region — Turso has
+`aws-ap-south-1` (Mumbai), and Vercel functions can be pinned to `bom1`.
+Split across continents, every query pays the round trip twice.
+
+Because `.env.local` repoints everything at the live database, the app prints a
+warning on start when it is not using your local file, and `pnpm seed` refuses
+a remote target outright unless passed `--remote`.
 
 Two things worth knowing:
 

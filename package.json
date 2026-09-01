@@ -14,7 +14,8 @@
     "e2e": "node scripts/e2e.mjs",
     "db:push": "node --import ./scripts/register.mjs scripts/db-push.ts",
     "test:ui": "node scripts/ui/run-all.mjs",
-    "trim": "node --import ./scripts/register.mjs scripts/trim.ts"
+    "trim": "node --import ./scripts/register.mjs scripts/trim.ts",
+    "copy-up": "node --import ./scripts/register.mjs scripts/copy-up.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

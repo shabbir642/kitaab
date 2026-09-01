@@ -8,7 +8,15 @@
  * dates, an unspecified location) so the filters, warnings and analytics have
  * something real to chew on.
  */
-import { db, first, pushSchema, run } from "../src/lib/db.ts";
+import { db, describeTarget, first, IS_LOCAL_FILE, pushSchema, run } from "../src/lib/db.ts";
+
+if (!IS_LOCAL_FILE && !process.argv.includes("--remote")) {
+  console.error(
+    `Refusing to seed a ${describeTarget()}.\n` +
+      `Sample data belongs in a local file. If you really mean it, pass --remote.\n`,
+  );
+  process.exit(1);
+}
 
 await pushSchema();
 
