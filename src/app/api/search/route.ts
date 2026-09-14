@@ -7,12 +7,13 @@ import { quickSearch } from "@/lib/queries";
 export async function GET(req: Request) {
   // A route handler answers machines, so an unauthenticated caller gets a
   // 401 rather than a redirect to a page it cannot render.
-  if (!(await currentUser())) return new NextResponse("Unauthorized", { status: 401 });
+  const viewer = await currentUser();
+  if (!viewer) return new NextResponse("Unauthorized", { status: 401 });
 
   const q = new URL(req.url).searchParams.get("q") ?? "";
   if (q.trim().length < 2) return NextResponse.json({ records: [] });
 
-  const records = (await quickSearch(q, 6)).map((r) => ({
+  const records = (await quickSearch(q, viewer, 6)).map((r) => ({
     id: r.id,
     assessmentId: r.assessmentId,
     name: r.name,

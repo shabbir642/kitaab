@@ -25,7 +25,7 @@ export default async function RootLayout({ children, modal }: LayoutProps<"/">) 
   // hidden. /login renders bare through here; every other page redirects to it
   // itself, which is why this layout does not redirect and cannot loop.
   const [counts, locations] = user
-    ? await Promise.all([railCounts(), locationCounts(20)])
+    ? await Promise.all([railCounts(user), locationCounts(user, 20)])
     : [null, null];
 
   return (

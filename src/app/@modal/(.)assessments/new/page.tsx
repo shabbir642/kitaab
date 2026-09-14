@@ -15,11 +15,11 @@ export default async function NewRecordModal({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
-  await requireUser();
+  const actor = await requireUser();
 
   const { mode } = await searchParams;
   const paste = mode === "paste";
-  const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
+  const [locations, assessors] = await Promise.all([allLocations(actor), allAssessors(actor)]);
 
   return (
     <Modal

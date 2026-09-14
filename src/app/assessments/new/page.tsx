@@ -15,11 +15,11 @@ export default async function NewRecordPage({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
-  await requireUser();
+  const actor = await requireUser();
 
   const { mode } = await searchParams;
   const paste = mode === "paste";
-  const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
+  const [locations, assessors] = await Promise.all([allLocations(actor), allAssessors(actor)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">

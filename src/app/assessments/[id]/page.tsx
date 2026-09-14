@@ -21,9 +21,10 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   // No user, no lookup: the title would otherwise name a record to a stranger.
-  if (!(await currentUser())) return { title: "Kitaab" };
+  const viewer = await currentUser();
+  if (!viewer) return { title: "Kitaab" };
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
+  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id), viewer) : null;
   return { title: record ? record.assessmentId : "Record" };
 }
 
@@ -34,7 +35,7 @@ export default async function RecordPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string }>;
 }) {
-  await requireUser();
+  const actor = await requireUser();
 
   const { id } = await params;
   const { saved } = await searchParams;
@@ -44,8 +45,8 @@ export default async function RecordPage({
   // The notes key off the id in the URL, not off the record, so both reads go
   // together.
   const [record, notes] = await Promise.all([
-    getAssessment(numericId),
-    listNotes(numericId),
+    getAssessment(numericId, actor),
+    listNotes(numericId, actor),
   ]);
   if (!record) notFound();
 

@@ -17,7 +17,10 @@ import { all, first, run } from "./db";
    rows rather than signed tokens.
 --------------------------------------------------------------------------- */
 
-export type Role = "admin" | "member";
+/** Two roles, and the difference is what you can see: an admin sees every
+ *  record, a maintainer only the ones they created. Admin is not
+ *  self-service - sign-up always produces a maintainer. */
+export type Role = "admin" | "maintainer";
 
 export type User = {
   id: number;
@@ -41,7 +44,7 @@ const toUser = (r: UserRow): User => ({
   id: r.id,
   email: r.email,
   name: r.name,
-  role: r.role === "admin" ? "admin" : "member",
+  role: r.role === "admin" ? "admin" : "maintainer",
   createdAt: r.created_at,
   lastLoginAt: r.last_login_at,
 });
@@ -188,7 +191,7 @@ export async function createUser(input: {
       normalizeEmail(input.email),
       await hashPassword(input.password),
       input.name.trim(),
-      input.role ?? "member",
+      input.role ?? "maintainer",
       stamp,
       stamp,
     ],

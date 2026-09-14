@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT    NOT NULL,
   password_hash TEXT    NOT NULL,
   name          TEXT    NOT NULL,
-  role          TEXT    NOT NULL DEFAULT 'member',
+  role          TEXT    NOT NULL DEFAULT 'maintainer',
   created_at    TEXT    NOT NULL,
   updated_at    TEXT    NOT NULL,
   last_login_at TEXT,
@@ -237,11 +237,20 @@ async function addMissingColumns(): Promise<void> {
   }
 }
 
-/** Applies the schema. Idempotent - every CREATE is IF NOT EXISTS, and every
- *  added column is checked for before it is added. */
+/* The non-admin role was called 'member' before visibility was tied to it.
+   Renaming it in the app without renaming it in the data would leave old rows
+   matching neither branch of the Role union. */
+async function renameLegacyRole(): Promise<void> {
+  await db.execute("UPDATE users SET role = 'maintainer' WHERE role = 'member'");
+}
+
+/** Applies the schema. Idempotent - every CREATE is IF NOT EXISTS, every added
+ *  column is checked for before it is added, and the role rename is a no-op
+ *  once it has run. */
 export async function pushSchema(): Promise<void> {
   await db.executeMultiple(SCHEMA);
   await addMissingColumns();
+  await renameLegacyRole();
 }
 
 /** A local file is created and migrated on demand, which keeps `pnpm dev`

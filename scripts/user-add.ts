@@ -53,7 +53,7 @@ if (password.length < 8) {
   process.exit(1);
 }
 
-const role = flag("admin") ? "admin" : "member";
+const role = flag("admin") ? "admin" : "maintainer";
 const id = await createUser({ email, password, name, role });
 
 console.log(`created ${role} #${id} <${normalizeEmail(email)}> on ${describeTarget()}`);

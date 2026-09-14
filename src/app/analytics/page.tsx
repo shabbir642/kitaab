@@ -30,7 +30,7 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<RawParams>;
 }) {
-  await requireUser();
+  const actor = await requireUser();
 
   const raw = await searchParams;
   const filters = parseFilters(raw);
@@ -51,16 +51,16 @@ export default async function AnalyticsPage({
     flags,
     allLocationNames,
   ] = await Promise.all([
-    summary(filters),
-    statusBreakdown(filters, "survey"),
-    statusBreakdown(filters, "completion"),
-    monthlyActivity(filters, 12),
-    byLocation(filters, 8),
-    facetCounts(filters, "surveyStatus"),
-    facetCounts(filters, "completionStatus"),
-    facetCounts(filters, "location"),
-    flagCounts(filters),
-    allLocations(),
+    summary(filters, actor),
+    statusBreakdown(filters, "survey", actor),
+    statusBreakdown(filters, "completion", actor),
+    monthlyActivity(filters, actor, 12),
+    byLocation(filters, actor, 8),
+    facetCounts(filters, "surveyStatus", actor),
+    facetCounts(filters, "completionStatus", actor),
+    facetCounts(filters, "location", actor),
+    flagCounts(filters, actor),
+    allLocations(actor),
   ]);
 
   const locations = byLocationRows.map((l) => ({

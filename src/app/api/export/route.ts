@@ -20,7 +20,8 @@ function csvCell(value: unknown): string {
 export async function GET(req: Request) {
   // A route handler answers machines, so an unauthenticated caller gets a
   // 401 rather than a redirect to a page it cannot render.
-  if (!(await currentUser())) return new NextResponse("Unauthorized", { status: 401 });
+  const viewer = await currentUser();
+  if (!viewer) return new NextResponse("Unauthorized", { status: 401 });
 
   const url = new URL(req.url);
   const raw: RawParams = {};
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
     raw[key] = all.length > 1 ? all : all[0];
   }
 
-  const rows = await exportRows(parseFilters(raw));
+  const rows = await exportRows(parseFilters(raw), viewer);
   const lines = [HEADERS.join(",")];
   for (const r of rows) {
     lines.push(

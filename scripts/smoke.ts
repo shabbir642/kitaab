@@ -17,6 +17,11 @@ import { assessmentInput } from "../src/lib/schema.ts";
 import { parseFilters } from "../src/lib/filters.ts";
 import { describeTarget, first, run } from "../src/lib/db.ts";
 
+/* No request, no signed-in user: these run as an admin so every read sees the
+   whole table, and create rows owned by nobody. */
+const ADMIN = { id: null, role: "admin" as const };
+
+
 const FIXTURE = `SMOKE-${Date.now()}`;
 
 let fails = 0;
@@ -41,12 +46,12 @@ try {
   await cleanup();
 
   /* ---- reads ---- */
-  const before = await listAssessments(parseFilters({}));
+  const before = await listAssessments(parseFilters({}), ADMIN);
   ok("list reads", before.total >= 0 && Array.isArray(before.items), before.total);
   ok("page size honoured", before.items.length <= before.perPage);
-  const counts = await railCounts();
+  const counts = await railCounts(ADMIN);
   ok("rail counts read", Object.values(counts).every((n) => Number.isInteger(n)), counts);
-  const agg = await summary(parseFilters({}));
+  const agg = await summary(parseFilters({}), ADMIN);
   ok("aggregates read", agg.total === before.total, { agg: agg.total, list: before.total });
 
   /* ---- write, and the FTS triggers behind it ---- */
@@ -62,24 +67,25 @@ try {
       completionStatus: "Completed",
     }),
     "manual",
+    null,
   );
   ok("write returns an id", id > 0, id);
 
-  const read = await getAssessment(id);
+  const read = await getAssessment(id, ADMIN);
   ok("write is readable", read?.assessmentId === FIXTURE && read?.location === "Smokeville");
 
-  const found = await listAssessments(parseFilters({ q: "Smokeville" }));
+  const found = await listAssessments(parseFilters({ q: "Smokeville" }), ADMIN);
   ok("FTS index picked the write up", found.items.some((r) => r.id === id),
      found.items.map((r) => r.assessmentId));
 
-  const grew = await listAssessments(parseFilters({}));
+  const grew = await listAssessments(parseFilters({}), ADMIN);
   ok("total moved by exactly one", grew.total === before.total + 1,
      { before: before.total, after: grew.total });
 
   /* ---- notes ---- */
-  const noteId = await addNote(id, "written by pnpm smoke");
+  const noteId = await addNote(id, "written by pnpm smoke", ADMIN);
   ok("note written", noteId > 0);
-  const notes = await listNotes(id);
+  const notes = await listNotes(id, ADMIN);
   ok("note readable", notes.length === 1 && notes[0].body === "written by pnpm smoke");
 } catch (err) {
   fails++;
