@@ -1,6 +1,6 @@
 # Kitaab — authentication plan
 
-Status: **Phases 1-4 done** - the app is closed and records are per-user. Written 14 September 2026.
+Status: **done** - closed, per-user, and audited. Remaining work is in section 8. Written 14 September 2026.
 
 Kitaab holds assessment records describing real people. Locally the app binds to
 `127.0.0.1` precisely so it is unreachable, and the README says in as many words
@@ -266,7 +266,17 @@ NULL - a placeholder id is a constraint violation. Scripts act as
 Rows created before accounts existed have `created_by` NULL, which matches no
 maintainer: they are admin-only. Still not backfilled.
 
-The `activity` table exists but nothing writes to it yet - see section 8.
+The `activity` table is written by `src/lib/activity.ts`, called from inside the query
+layer rather than from the actions, so a new call site cannot forget it. Only
+writes that actually changed a row are recorded - a maintainer aiming at a
+record they cannot see leaves no trail. Successful sign-ins and sign-ups are
+recorded; failed sign-ins are not, since `login_attempts` already counts those
+and the trail should not fill with noise an attacker controls.
+
+Note that the foreign key from `activity.user_id` means a user with history
+cannot be hard-deleted. The app soft-deletes users, so this only bites test
+fixtures - but it is the constraint doing its job: a trail must not lose its
+actor.
 
 Verified: 33 assertions in `pnpm check` covering list, direct-id read, update,
 delete, inline edits, extras, notes, aggregates, rail counts, filter menus,
@@ -289,12 +299,20 @@ nothing, and the admin sees both.
 *Tech:* server actions with the existing `FormState` shape and Zod schemas in
 `src/lib/schema.ts`, so the auth forms behave like every other form in the app.
 
-### Phase 6 — Tests, then deployment
-See §6.
+### Phase 6 — Tests, then deployment — **tests done**
+All six browser suites pass against a throwaway database. `pnpm test:ui` now
+creates an account and a session and hands each suite the token; a new suite,
+`scripts/ui/auth.mjs`, covers the sign-in flow itself and deliberately does not
+arrive with a cookie.
 
-**Sequencing.** 1 and 2 are independent groundwork and can land quietly. 3 is the
-one-way door. 4 and 5 can proceed in parallel. Rough size: 1–3 is the core day,
-4–5 a second, 6 half a day of unglamorous repair.
+`pnpm check` is at 126 passing. Six failures predate all of this work - they are
+analytics assertions that assume a populated database and fail on an empty
+scratch one. Worth fixing, unrelated to auth.
+
+**Deployment has not happened.** The branch is unpushed and `main` is untouched,
+so the live site is still the pre-auth, publicly-readable version. The order in
+section 6 matters: dump, push schema, create the admin on the remote, *then*
+deploy. Creating the admin after deploying locks everyone out.
 
 ---
 
