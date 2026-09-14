@@ -162,6 +162,22 @@ export function Rail({
           <Plus size={14} strokeWidth={2.5} />
           <span className={cn(collapsed && "lg:hidden")}>New record</span>
         </Link>
+        <Link
+          href="/analytics"
+          onClick={onClose}
+          title={collapsed ? "Analytics" : undefined}
+          aria-current={pathname === "/analytics" ? "page" : undefined}
+          className={cn(
+            "flex h-11 items-center gap-2 rounded-md text-[12.5px] transition-colors lg:h-[30px]",
+            collapsed ? "lg:h-9 lg:justify-center" : "px-2",
+            pathname === "/analytics"
+              ? "bg-surface font-medium text-ink"
+              : "text-ink-secondary hover:bg-surface hover:text-ink",
+          )}
+        >
+          <BarChart3 size={14} strokeWidth={1.75} className="shrink-0" />
+          <span className={cn(collapsed && "lg:hidden")}>Analytics</span>
+        </Link>
       </div>
 
       <div className={cn(collapsed ? "lg:px-2" : "px-2.5")}>
@@ -267,21 +283,6 @@ export function Rail({
             ⌘K
           </kbd>
         </button>
-        <span className={cn("h-4 w-px bg-hairline", collapsed && "lg:hidden")} aria-hidden />
-        <Link
-          href="/analytics"
-          onClick={onClose}
-          title={collapsed ? "Analytics" : undefined}
-          aria-current={pathname === "/analytics" ? "page" : undefined}
-          className={cn(
-            "flex h-11 items-center gap-[7px] text-[12.5px] transition-colors lg:h-auto",
-            collapsed && "lg:grid lg:size-9 lg:place-items-center",
-            pathname === "/analytics" ? "font-medium text-ink" : "text-ink-secondary hover:text-ink",
-          )}
-        >
-          <BarChart3 size={14} strokeWidth={1.75} className="shrink-0" />
-          <span className={cn(collapsed && "lg:hidden")}>Analytics</span>
-        </Link>
         <span className={cn("ml-auto flex items-center gap-0.5", collapsed && "lg:ml-0")}>
           <ThemeToggle />
           <SignOut name={userName} />
