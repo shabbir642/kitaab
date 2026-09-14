@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { logActivity } from "@/lib/activity";
 import { createUser, emailTaken, signIn } from "@/lib/auth";
 import { endSession, startSession } from "@/lib/session";
 
@@ -93,6 +94,7 @@ export async function signUpAction(_prev: SignupState, fd: FormData): Promise<Si
   const id = await createUser({ email, password, name, role: "maintainer" });
 
   const { ip, userAgent } = await requestMeta();
+  await logActivity(id, "sign-up", "user", id, { ip });
   await startSession(id, { ip, userAgent });
   redirect("/assessments");
 }

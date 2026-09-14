@@ -4,6 +4,7 @@ import {
   scrypt as scryptCallback,
   timingSafeEqual,
 } from "node:crypto";
+import { logActivity } from "./activity";
 import { all, first, run } from "./db";
 
 /* ---------------------------------------------------------------------------
@@ -396,5 +397,6 @@ export async function signIn(
   }
 
   await clearAttempts(email, ip);
+  await logActivity(user.id, "sign-in", "user", user.id, { ip });
   return { ok: true, user };
 }

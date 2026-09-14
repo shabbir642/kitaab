@@ -11,6 +11,7 @@ import {
   statusBreakdown, summary, updateAssessment, updateInlineField,
 } from "../src/lib/queries.ts";
 import { first, pushSchema, run } from "../src/lib/db.ts";
+import { activityFor, recentActivity } from "../src/lib/activity.ts";
 import {
   MAX_ATTEMPTS, clearAttempts, createSession, createUser, deactivateUser, emailTaken,
   findUserByEmail, findUserById, hashPassword, hashToken, revokeOtherSessions,
@@ -190,6 +191,9 @@ await clearFixture();
 
 /* ---- auth ---- */
 const clearAuthFixture = async () => {
+  // activity before users: the trail references its actor, and the foreign key
+  // is enforced. The app soft-deletes users precisely so this never comes up.
+  await run("DELETE FROM activity WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'chk-%')");
   await run("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'chk-%')");
   await run("DELETE FROM login_attempts WHERE email LIKE 'chk-%'");
   await run("DELETE FROM users WHERE email LIKE 'chk-%'");
@@ -262,6 +266,7 @@ ok("address is reusable after deactivation", !(await emailTaken("chk-user@exampl
 
 /* ---- visibility: admins see everything, maintainers see only their own ---- */
 const clearScopeFixture = async () => {
+  await run("DELETE FROM activity WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'scope-%')");
   await run("DELETE FROM notes WHERE assessment_id IN (SELECT id FROM assessments WHERE assessment_id LIKE 'SCOPE-%')");
   await run("DELETE FROM assessments WHERE assessment_id LIKE 'SCOPE-%'");
   await run("DELETE FROM users WHERE email LIKE 'scope-%'");
@@ -336,6 +341,47 @@ ok("assessment IDs collide across owners", await assessmentIdExists("SCOPE-A"));
 const orphan = await createAssessment(rec("SCOPE-ORPHAN"), "manual", null);
 ok("an ownerless row is invisible to a maintainer", (await getAssessment(orphan, alice)) === null);
 ok("and visible to an admin", (await getAssessment(orphan, ADMIN))?.id === orphan);
+
+/* ---- the audit trail ---- */
+const trailFor = async (id: number) => (await activityFor("assessment", id)).map((a) => a.action);
+
+ok("creating a record is logged", (await trailFor(aliceRec)).includes("create"));
+ok("the log names the actor",
+   (await activityFor("assessment", aliceRec)).some((a) => a.userId === aliceId));
+ok("the log carries its detail",
+   (await activityFor("assessment", aliceRec)).some((a) => a.detail.assessmentId === "SCOPE-A"));
+
+/* A write that was refused must leave nothing behind, or the trail records
+   things that never happened. */
+const beforeRefused = (await activityFor("assessment", aliceRec)).length;
+await updateAssessment(aliceRec, assessmentInput.parse({ ...rec("SCOPE-A"), name: "Nope" }), bob);
+await updateInlineField(aliceRec, "remarks", "nope", bob);
+await deleteAssessments([aliceRec], bob);
+ok("a refused write is not logged",
+   (await activityFor("assessment", aliceRec)).length === beforeRefused,
+   `${beforeRefused} -> ${(await activityFor("assessment", aliceRec)).length}`);
+
+/* And a real one is. */
+await updateInlineField(aliceRec, "remarks", "really mine", alice);
+ok("a real write is logged", (await activityFor("assessment", aliceRec)).length > beforeRefused);
+
+/* Deletion outlives the record, which is the whole point of a log. */
+const doomed = await createAssessment(rec("SCOPE-GONE"), "manual", alice);
+await deleteAssessments([doomed], alice);
+ok("a deleted record still has a trail",
+   (await recentActivity(200)).some((a) => a.action === "delete" && Array.isArray(a.detail.ids)));
+
+ok("signing in is logged", await (async () => {
+  await signIn("scope-alice@example.com", "pw");
+  return (await recentActivity(50)).some((a) => a.action === "sign-in" && a.userId === aliceId);
+})());
+ok("a failed sign-in is not logged", await (async () => {
+  const before = (await recentActivity(200)).filter((a) => a.action === "sign-in").length;
+  await signIn("scope-alice@example.com", "wrong-password");
+  return (await recentActivity(200)).filter((a) => a.action === "sign-in").length === before;
+})());
+
+await run("DELETE FROM activity WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'scope-%')");
 
 await clearScopeFixture();
 

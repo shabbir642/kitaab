@@ -1,6 +1,7 @@
 import { all, first, run, type InValue } from "./db";
 import { DEFAULT_SORTS, SORTABLE, type Filters } from "./filters";
 import type { Role } from "./auth";
+import { logActivity } from "./activity";
 import {
   OVERDUE_DAYS,
   PHASES,
@@ -350,6 +351,10 @@ export async function createAssessment(
       actor?.id ?? null, actor?.id ?? null,
     ],
   );
+  await logActivity(actor?.id ?? null, "create", "assessment", info.lastInsertRowid, {
+    assessmentId: input.assessmentId,
+    origin,
+  });
   return info.lastInsertRowid;
 }
 
@@ -359,7 +364,7 @@ export async function updateAssessment(
   actor: Actor,
 ): Promise<void> {
   const scope = visibleTo(actor);
-  await run(
+  const changed = await run(
     `UPDATE assessments SET
        assessment_id = ?, name = ?, location = ?, assessor = ?,
        survey_date = ?, survey_status = ?, completion_date = ?,
@@ -372,6 +377,11 @@ export async function updateAssessment(
       input.remarks, now(), actor.id, id, ...scope.params,
     ],
   );
+  // Only if a row actually moved: a maintainer aiming at a record they cannot
+  // see changes nothing, and must not leave a trail saying otherwise.
+  if (changed.changes > 0) {
+    await logActivity(actor.id, "update", "assessment", id, { assessmentId: input.assessmentId });
+  }
 }
 
 /** Soft delete - rows stay recoverable straight from the database. */
@@ -384,6 +394,9 @@ export async function deleteAssessments(ids: number[], actor: Actor): Promise<nu
      WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL AND ${scope.sql}`,
     [stamp, stamp, actor.id, ...ids, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "delete", "assessment", null, { ids, deleted: info.changes });
+  }
   return info.changes;
 }
 
@@ -400,6 +413,9 @@ export async function bulkSetStatus(
      WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL AND ${scope.sql}`,
     [value, now(), actor.id, ...ids, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "status", "assessment", null, { ids, field, value });
+  }
   return info.changes;
 }
 
@@ -690,6 +706,9 @@ export async function addNote(assessmentId: number, body: string, actor: Actor):
         AND ${scope.sql.replace("created_by", "a.created_by")}`,
     [body, now(), actor.id, assessmentId, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "create", "note", info.lastInsertRowid, { assessmentId });
+  }
   return info.lastInsertRowid;
 }
 
@@ -707,6 +726,7 @@ export async function deleteNote(
        )`,
     [now(), noteId, assessmentId, ...scope.params],
   );
+  if (info.changes > 0) await logActivity(actor.id, "delete", "note", noteId, { assessmentId });
   return info.changes;
 }
 
@@ -728,11 +748,12 @@ export async function updateInlineField(
   actor: Actor,
 ): Promise<void> {
   const scope = visibleTo(actor);
-  await run(
+  const changed = await run(
     `UPDATE assessments SET ${INLINE_FIELDS[field]} = ?, updated_at = ?, updated_by = ?
      WHERE id = ? AND deleted_at IS NULL AND ${scope.sql}`,
     [value, now(), actor.id, id, ...scope.params],
   );
+  if (changed.changes > 0) await logActivity(actor.id, "update", "assessment", id, { field });
 }
 
 /** Custom fields live in the `extras` JSON blob - the room a record has to
@@ -752,6 +773,7 @@ export async function setExtra(
      WHERE id = ? AND ${scope.sql}`,
     [JSON.stringify(next), now(), actor.id, id, ...scope.params],
   );
+  await logActivity(actor.id, "update", "assessment", id, { extra: key });
 }
 
 export async function removeExtra(id: number, key: string, actor: Actor): Promise<void> {
@@ -765,4 +787,5 @@ export async function removeExtra(id: number, key: string, actor: Actor): Promis
      WHERE id = ? AND ${scope.sql}`,
     [JSON.stringify(next), now(), actor.id, id, ...scope.params],
   );
+  await logActivity(actor.id, "update", "assessment", id, { removedExtra: key });
 }
