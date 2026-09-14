@@ -284,11 +284,6 @@ export function DataTable({
                       </span>
                     )}
                   </span>
-                  {r.remarks && (
-                    <span className="mt-0.5 block truncate text-[11px] text-ink-muted" title={r.remarks}>
-                      {r.remarks}
-                    </span>
-                  )}
                 </td>
                 <td className="pr-4 text-xs text-ink-secondary">
                   {r.location ?? <span className="text-ink-muted">—</span>}
