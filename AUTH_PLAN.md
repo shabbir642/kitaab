@@ -1,6 +1,6 @@
 # Kitaab — authentication plan
 
-Status: **Phase 1 done** (schema and migration path). Written 14 September 2026.
+Status: **Phases 1-2 done** (schema, session core). Written 14 September 2026.
 
 Kitaab holds assessment records describing real people. Locally the app binds to
 `127.0.0.1` precisely so it is unreachable, and the README says in as many words
@@ -176,10 +176,30 @@ read `NULL` attribution.
 
 *Tech:* libSQL, existing `scripts/register.mjs` runner.
 
-### Phase 2 — Session core
-`src/lib/auth.ts`: scrypt hash and `timingSafeEqual` verify, session create /
-verify / revoke / revoke-all, `currentUser()` cached per request, `requireUser()`.
-Unit coverage folded into `pnpm check`.
+### Phase 2 — Session core — **done**
+Split across two files rather than the one originally planned, because
+`scripts/user-add.ts` in Phase 5 needs `hashPassword` and a CLI cannot import a
+request-scoped API:
+
+- **`src/lib/auth.ts`** — no `next/headers`. Hashing, users, sessions,
+  throttling, and `signIn()` as the single place a password is checked.
+- **`src/lib/session.ts`** — the cookie half. `currentUser()` (React
+  per-request cache), `requireUser()`, `requireAdmin()`, `startSession()`,
+  `endSession()`.
+
+Hashes are stored as `scrypt$N$r$p$salt$digest`, self-describing so the cost
+can be raised later without invalidating existing passwords. Note that scrypt
+at `N=2^15, r=8` needs exactly 32 MiB, and Node's default `maxmem` check is
+`>` rather than `>=`, so the parameters are rejected unless `maxmem` is raised.
+
+Session expiry rolls only when less than a day of life remains — extending it on
+every request would mean a write, and a round trip to Mumbai, per page load.
+
+Verified: 46 new assertions in `pnpm check` (93 passing overall, the 6 failures
+unchanged from baseline), covering hashing, salting, malformed-hash handling,
+email normalisation, sign-in, session resolve/revoke/expire, the raw token
+never being stored, deactivation killing live sessions, and throttling.
+Production build clean.
 
 *Tech:* `node:crypto` (`scrypt`, `randomBytes`, `createHash`, `timingSafeEqual`),
 React request-level cache, Next cookie API.

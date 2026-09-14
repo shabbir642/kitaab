@@ -9,7 +9,12 @@ import {
   locationCounts, monthlyActivity, railCounts, removeExtra, setExtra,
   statusBreakdown, summary, updateAssessment, updateInlineField,
 } from "../src/lib/queries.ts";
-import { pushSchema, run } from "../src/lib/db.ts";
+import { first, pushSchema, run } from "../src/lib/db.ts";
+import {
+  MAX_ATTEMPTS, clearAttempts, createSession, createUser, deactivateUser, emailTaken,
+  findUserByEmail, findUserById, hashPassword, hashToken, revokeOtherSessions,
+  revokeSession, signIn, userForToken, verifyPassword,
+} from "../src/lib/auth.ts";
 
 await pushSchema();
 
@@ -177,6 +182,80 @@ ok("gone from reads", (await getAssessment(id)) === null);
 ok("ID reusable after delete", !(await assessmentIdExists("CHK-001")));
 
 await clearFixture();
+
+/* ---- auth ---- */
+const clearAuthFixture = async () => {
+  await run("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'chk-%')");
+  await run("DELETE FROM login_attempts WHERE email LIKE 'chk-%'");
+  await run("DELETE FROM users WHERE email LIKE 'chk-%'");
+};
+await clearAuthFixture();
+
+const hash = await hashPassword("correct horse battery staple");
+ok("hash is self-describing scrypt", hash.startsWith("scrypt$") && hash.split("$").length === 6);
+ok("password verifies", await verifyPassword("correct horse battery staple", hash));
+ok("wrong password rejected", !(await verifyPassword("Correct horse battery staple", hash)));
+ok("salted: same password hashes differently",
+   hash !== (await hashPassword("correct horse battery staple")));
+ok("malformed hash rejected, not thrown", !(await verifyPassword("x", "not-a-hash")));
+ok("unknown algorithm rejected", !(await verifyPassword("x", "bcrypt$1$2$3$4$5")));
+
+const uid = await createUser({ email: "  CHK-User@Example.COM ", password: "pw-one", name: "Check User" });
+ok("user created", uid > 0);
+ok("email normalised on write and read", (await findUserByEmail("chk-user@example.com"))?.id === uid);
+ok("lookup is case-insensitive", (await findUserByEmail("CHK-USER@EXAMPLE.com"))?.id === uid);
+ok("user defaults to member", (await findUserById(uid))?.role === "member");
+ok("email taken", await emailTaken("chk-user@example.com"));
+ok("email taken ignores self", !(await emailTaken("chk-user@example.com", uid)));
+ok("User carries no password hash", !("passwordHash" in (await findUserById(uid))!));
+
+ok("sign-in rejects a wrong password", !(await signIn("chk-user@example.com", "nope")).ok);
+ok("sign-in rejects an unknown address", !(await signIn("chk-nobody@example.com", "pw-one")).ok);
+const good = await signIn("chk-user@example.com", "pw-one");
+ok("sign-in accepts the right password", good.ok && good.user.id === uid);
+ok("last_login_at unset before a session", (await findUserById(uid))?.lastLoginAt === null);
+
+const { token } = await createSession(uid);
+ok("session resolves to its user", (await userForToken(token))?.id === uid);
+ok("last_login_at stamped", (await findUserById(uid))?.lastLoginAt !== null);
+ok("raw token is not stored", !(await first("SELECT id FROM sessions WHERE token_hash = ?", [token])));
+ok("token hash is stored", !!(await first("SELECT id FROM sessions WHERE token_hash = ?", [hashToken(token)])));
+ok("a garbage token resolves to nobody", (await userForToken("garbage")) === undefined);
+ok("an empty token resolves to nobody", (await userForToken("")) === undefined);
+
+const { token: second } = await createSession(uid);
+await revokeSession(token);
+ok("revoked session is dead", (await userForToken(token)) === undefined);
+ok("the other session is untouched", (await userForToken(second))?.id === uid);
+
+const { token: third } = await createSession(uid);
+await revokeOtherSessions(uid, third);
+ok("revokeOthers keeps the caller", (await userForToken(third))?.id === uid);
+ok("revokeOthers drops the rest", (await userForToken(second)) === undefined);
+
+await run("UPDATE sessions SET expires_at = ? WHERE token_hash = ?",
+          [new Date(Date.now() - 1000).toISOString(), hashToken(third)]);
+ok("expired session is dead", (await userForToken(third)) === undefined);
+
+const throttleIp = "203.0.113.7";
+for (let i = 0; i < MAX_ATTEMPTS - 1; i++) await signIn("chk-user@example.com", "wrong", throttleIp);
+const under = await signIn("chk-user@example.com", "wrong", throttleIp);
+ok("under the limit, still just invalid", !under.ok && under.reason === "invalid");
+const locked = await signIn("chk-user@example.com", "pw-one", throttleIp);
+ok("over the limit, throttled even with the right password",
+   !locked.ok && locked.reason === "throttled");
+const elsewhere = await signIn("chk-other@example.com", "pw-one", "198.51.100.2");
+ok("a different IP and address is unaffected", !elsewhere.ok && elsewhere.reason === "invalid");
+await clearAttempts("chk-user@example.com", throttleIp);
+ok("cleared attempts let the user back in", (await signIn("chk-user@example.com", "pw-one", throttleIp)).ok);
+
+const { token: live } = await createSession(uid);
+await deactivateUser(uid);
+ok("deactivated user cannot be found", (await findUserById(uid)) === undefined);
+ok("deactivating kills live sessions", (await userForToken(live)) === undefined);
+ok("address is reusable after deactivation", !(await emailTaken("chk-user@example.com")));
+
+await clearAuthFixture();
 
 console.log(fails === 0 ? "\nALL PASS" : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);
