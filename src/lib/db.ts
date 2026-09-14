@@ -117,6 +117,78 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_notes_assessment
   ON notes (assessment_id, created_at DESC);
 
+/* ---------------------------------------------------------------------------
+   Accounts and attribution. See AUTH_PLAN.md.
+--------------------------------------------------------------------------- */
+
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT    NOT NULL,
+  password_hash TEXT    NOT NULL,
+  name          TEXT    NOT NULL,
+  role          TEXT    NOT NULL DEFAULT 'member',
+  created_at    TEXT    NOT NULL,
+  updated_at    TEXT    NOT NULL,
+  last_login_at TEXT,
+  deleted_at    TEXT
+);
+
+-- Live users only, matching the assessments pattern: a deactivated account
+-- never blocks reusing the address. Emails are stored lowercased so this index
+-- is the uniqueness rule, rather than merely a fast path to it.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
+  ON users (email) WHERE deleted_at IS NULL;
+
+-- Sessions are rows rather than signed tokens so that they can be revoked.
+-- token_hash holds the SHA-256 of the cookie's value, never the value itself:
+-- export:sql writes this table to a file, and a dump should not be a set of
+-- working credentials.
+CREATE TABLE IF NOT EXISTS sessions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES users(id),
+  token_hash   TEXT    NOT NULL,
+  created_at   TEXT    NOT NULL,
+  expires_at   TEXT    NOT NULL,
+  last_seen_at TEXT    NOT NULL,
+  revoked_at   TEXT,
+  user_agent   TEXT,
+  ip           TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id, expires_at);
+
+-- The audit trail. The created_by/updated_by columns say who a record belongs
+-- to now; this says who did what, including to records that no longer exist.
+-- user_id is nullable: rows written before accounts existed have no actor, and
+-- inventing one would be worse than admitting the gap.
+CREATE TABLE IF NOT EXISTS activity (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id),
+  action     TEXT    NOT NULL,
+  entity     TEXT    NOT NULL,
+  entity_id  INTEGER,
+  detail     TEXT    NOT NULL DEFAULT '{}',
+  created_at TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_entity
+  ON activity (entity, entity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_user
+  ON activity (user_id, created_at DESC);
+
+-- Failed sign-ins, for throttling. A serverless deployment has no shared
+-- memory, so the counter has to live here or it counts nothing.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  email      TEXT,
+  ip         TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts
+  ON login_attempts (email, ip, created_at DESC);
+
 -- Keyword search. External-content FTS5 index: no duplicated storage, kept in
 -- sync by the triggers below.
 CREATE VIRTUAL TABLE IF NOT EXISTS assessments_fts USING fts5(
@@ -142,9 +214,34 @@ CREATE TRIGGER IF NOT EXISTS assessments_au AFTER UPDATE ON assessments BEGIN
 END;
 `;
 
-/** Applies the schema. Idempotent - every statement is IF NOT EXISTS. */
+/* Columns added to tables that predate them. SQLite has no
+   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so these cannot live in SCHEMA
+   with everything else and are checked against PRAGMA table_info instead.
+
+   All three are nullable on purpose. Records created before there were accounts
+   have no author, and NULL says exactly that. */
+const ADDED_COLUMNS: ReadonlyArray<{ table: string; column: string; type: string }> = [
+  { table: "assessments", column: "created_by", type: "INTEGER REFERENCES users(id)" },
+  { table: "assessments", column: "updated_by", type: "INTEGER REFERENCES users(id)" },
+  { table: "notes", column: "author_id", type: "INTEGER REFERENCES users(id)" },
+];
+
+async function addMissingColumns(): Promise<void> {
+  for (const { table, column, type } of ADDED_COLUMNS) {
+    // db.execute directly, never all(): all() awaits ensureSchema, which is
+    // itself awaiting this function, and the two would deadlock.
+    const info = await db.execute(`PRAGMA table_info(${table})`);
+    const nameAt = info.columns.indexOf("name");
+    if (info.rows.some((row) => row[nameAt] === column)) continue;
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
+/** Applies the schema. Idempotent - every CREATE is IF NOT EXISTS, and every
+ *  added column is checked for before it is added. */
 export async function pushSchema(): Promise<void> {
   await db.executeMultiple(SCHEMA);
+  await addMissingColumns();
 }
 
 /** A local file is created and migrated on demand, which keeps `pnpm dev`
