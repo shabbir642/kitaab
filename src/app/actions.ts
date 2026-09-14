@@ -24,6 +24,7 @@ import {
   type InlineField,
 } from "@/lib/queries";
 import { PASTE_COLUMNS } from "@/lib/paste";
+import { requireUser } from "@/lib/session";
 
 export type FormState = {
   ok: boolean;
@@ -63,6 +64,7 @@ export async function saveRecord(
   _prev: FormState,
   fd: FormData,
 ): Promise<FormState> {
+  await requireUser();
   const parsed = assessmentInput.safeParse(readForm(fd));
   if (!parsed.success) {
     return { ok: false, message: "Fix the highlighted fields.", fieldErrors: flatten(parsed.error) };
@@ -88,6 +90,7 @@ export async function saveRecord(
 }
 
 export async function deleteRecordsAction(fd: FormData): Promise<void> {
+  await requireUser();
   const ids = fd
     .getAll("id")
     .map((v) => Number(v))
@@ -100,6 +103,7 @@ export async function deleteRecordsAction(fd: FormData): Promise<void> {
 }
 
 export async function bulkStatusAction(fd: FormData): Promise<void> {
+  await requireUser();
   const ids = fd
     .getAll("id")
     .map((v) => Number(v))
@@ -136,6 +140,7 @@ export async function pasteRecordsAction(
   _prev: PasteState,
   fd: FormData,
 ): Promise<PasteState> {
+  await requireUser();
   const text = String(fd.get("rows") ?? "");
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return { ok: false, message: "Nothing to add - paste at least one row." };
@@ -208,6 +213,7 @@ function revalidateRecord(id: number) {
 }
 
 export async function addNoteAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireUser();
   const id = recordId(fd);
   const body = String(fd.get("body") ?? "").trim();
   if (id == null) return { ok: false, message: "Unknown record." };
@@ -220,6 +226,7 @@ export async function addNoteAction(_prev: FormState, fd: FormData): Promise<For
 }
 
 export async function deleteNoteAction(fd: FormData): Promise<void> {
+  await requireUser();
   const id = recordId(fd);
   const noteId = Number(fd.get("noteId"));
   if (id == null || !Number.isInteger(noteId)) return;
@@ -232,6 +239,7 @@ export async function updateFieldAction(
   field: InlineField,
   value: string,
 ): Promise<FormState> {
+  await requireUser();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
   if (!(field in INLINE_FIELDS)) return { ok: false, message: "Unknown field." };
   const trimmed = value.trim();
@@ -245,6 +253,7 @@ export async function setExtraAction(
   key: string,
   value: string,
 ): Promise<FormState> {
+  await requireUser();
   const name = key.trim();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
   if (!name) return { ok: false, message: "Give the field a name." };
@@ -257,6 +266,7 @@ export async function setExtraAction(
 }
 
 export async function removeExtraAction(fd: FormData): Promise<void> {
+  await requireUser();
   const id = recordId(fd);
   const key = String(fd.get("key") ?? "");
   if (id == null || !key) return;

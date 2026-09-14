@@ -15,6 +15,7 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
+import { SignOut } from "./SignOut";
 import { ThemeToggle } from "./ThemeToggle";
 import { parseFilters, type RawParams } from "@/lib/filters";
 import type { RailCounts } from "@/lib/queries";
@@ -48,6 +49,7 @@ export function Rail({
   counts,
   locations,
   locationTotal,
+  userName,
   onOpenPalette,
   open,
   collapsed,
@@ -57,6 +59,7 @@ export function Rail({
   counts: RailCounts;
   locations: { location: string; count: number }[];
   locationTotal: number;
+  userName: string;
   onOpenPalette: () => void;
   /** is the mobile drawer showing (ignored from lg, where the rail is a column) */
   open: boolean;
@@ -279,8 +282,9 @@ export function Rail({
           <BarChart3 size={14} strokeWidth={1.75} className="shrink-0" />
           <span className={cn(collapsed && "lg:hidden")}>Analytics</span>
         </Link>
-        <span className={cn("ml-auto", collapsed && "lg:ml-0")}>
+        <span className={cn("ml-auto flex items-center gap-0.5", collapsed && "lg:ml-0")}>
           <ThemeToggle />
+          <SignOut name={userName} />
         </span>
       </div>
     </aside>

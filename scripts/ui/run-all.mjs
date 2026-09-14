@@ -17,6 +17,7 @@ const PORT = Number(process.env.TEST_PORT ?? 3123);
 const BASE = `http://127.0.0.1:${PORT}`;
 const SUITES = [
   "scripts/e2e.mjs",
+  "scripts/ui/auth.mjs",
   "scripts/ui/shell.mjs",
   "scripts/ui/list.mjs",
   "scripts/ui/palette.mjs",
@@ -37,6 +38,15 @@ console.log(`seeding a throwaway database at ${dbUrl}\n`);
 await sh("node", ["--import", "./scripts/register.mjs", "scripts/db-push.ts"], { KITAAB_DB_URL: dbUrl });
 await sh("node", ["--import", "./scripts/register.mjs", "scripts/seed.ts", "120"], { KITAAB_DB_URL: dbUrl });
 
+// The app is closed now, so the suites cannot reach anything without an
+// account and a live session. Both are made here and handed over as a token.
+const tokenPath = join(workdir, "session.txt");
+await sh("node", ["--import", "./scripts/register.mjs", "scripts/ui/make-session.ts"], {
+  KITAAB_DB_URL: dbUrl,
+  KITAAB_TOKEN_OUT: tokenPath,
+});
+const session = readFileSync(tokenPath, "utf8").trim();
+
 const logPath = join(workdir, "server.log");
 const log = openSync(logPath, "w");
 const server = spawn("pnpm", ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(PORT)], {
@@ -52,7 +62,7 @@ const server = spawn("pnpm", ["exec", "next", "dev", "--hostname", "127.0.0.1", 
 let up = false;
 for (let i = 0; i < 60; i++) {
   try {
-    const res = await fetch(`${BASE}/assessments`);
+    const res = await fetch(`${BASE}/login`);
     if (res.ok) { up = true; break; }
   } catch { /* not listening yet */ }
   await sleep(500);
@@ -68,7 +78,7 @@ try {
     console.log(`server up on ${BASE}\n`);
     for (const suite of SUITES) {
       console.log(`\n──── ${suite} ────`);
-      const code = await sh("node", [suite, BASE]);
+      const code = await sh("node", [suite, BASE], { TEST_SESSION: session });
       if (code !== 0) failed++;
     }
   }

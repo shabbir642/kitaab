@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { currentUser } from "@/lib/session";
 import { parseFilters, type RawParams } from "@/lib/filters";
 import { exportRows } from "@/lib/queries";
 
@@ -17,6 +18,10 @@ function csvCell(value: unknown): string {
 }
 
 export async function GET(req: Request) {
+  // A route handler answers machines, so an unauthenticated caller gets a
+  // 401 rather than a redirect to a page it cannot render.
+  if (!(await currentUser())) return new NextResponse("Unauthorized", { status: 401 });
+
   const url = new URL(req.url);
   const raw: RawParams = {};
   for (const key of new Set(url.searchParams.keys())) {

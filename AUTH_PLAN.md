@@ -1,6 +1,6 @@
 # Kitaab — authentication plan
 
-Status: **Phases 1-2 done** (schema, session core). Written 14 September 2026.
+Status: **Phases 1-3 done** - the app is closed. Written 14 September 2026.
 
 Kitaab holds assessment records describing real people. Locally the app binds to
 `127.0.0.1` precisely so it is unreachable, and the README says in as many words
@@ -33,25 +33,30 @@ to the person who caused it.
 ```
   request
      │
-     ├─ request-level gate ──── no session cookie ──▶ redirect /login
-     │   (coarse, fast, UX)
      ▼
-  layout / page / action / route handler
+  root layout ── currentUser() ─ cookie ─▶ sessions ─ join ─▶ users
+     │              (React per-request cache: resolved once, reused)
      │
-     ├─ requireUser()  ◀── the actual enforcement, server-side, every time
-     │       │
-     │       └─ currentUser()  ─ cookie ─▶ sessions ─ join ─▶ users
-     │                          (cached per request)
+     ├─ nobody?  draw no shell, skip the rail's two reads
+     ▼
+  page / server action / route handler
+     │
+     ├─ requireUser()  ◀── the enforcement, server-side, every time
+     │                     page  -> redirect /login
+     │                     route -> 401
      ▼
   queries.ts ──▶ writes stamped with user id ──▶ activity log
 ```
 
-**Two gates, deliberately.** The request-level gate exists so a signed-out
-visitor gets a login page instead of a flash of empty dashboard. It is *not* the
-security boundary — Next has had middleware-bypass vulnerabilities before
-(CVE-2025-29927), and a gate that can be skipped with a header is a convenience,
-not a control. The boundary is `requireUser()` running inside each server action
-and route handler.
+**One boundary, not two.** The original plan had a proxy-level redirect in
+front of this for speed. It was dropped: the layout has to resolve the user
+anyway, so the coarse gate saved nothing and added a second place to be wrong.
+Next has had middleware-bypass vulnerabilities before (CVE-2025-29927), so a
+request-level gate could never have been the boundary regardless. The boundary
+is `requireUser()`, inside each page, server action and route handler.
+
+Every page redirects itself, which is why the layout does not redirect - and
+therefore cannot loop with `/login`, which renders through the same layout.
 
 ### Where the session lives
 
@@ -74,7 +79,8 @@ Cookie flags: `httpOnly`, `secure` in production, `sameSite=lax`, `path=/`,
 | `src/app/admin/users/page.tsx` | admin-only user management |
 | `src/app/auth-actions.ts` | sign in, sign out, change password, admin user actions |
 | `scripts/user-add.ts` | CLI to create the first admin |
-| request-interception file | the coarse redirect — **exact filename to be confirmed, see §7** |
+| `src/components/LoginForm.tsx` | the form; `SignOut.tsx` is the rail's control |
+| `scripts/ui/auth.mjs` | browser suite for the whole sign-in flow |
 
 ---
 
@@ -205,28 +211,39 @@ Production build clean.
 *Tech:* `node:crypto` (`scrypt`, `randomBytes`, `createHash`, `timingSafeEqual`),
 React request-level cache, Next cookie API.
 
-### Phase 3 — Enforcement
-The sharp edge. Coarse redirect gate, then `requireUser()` in every server action
-in `src/app/actions.ts`, both route handlers, and the root layout.
+### Phase 3 — Enforcement — **done**
+The app is now closed. `requireUser()` guards every page, all nine server
+actions, and both route handlers; the two API routes answer 401 rather than
+redirecting, because they answer machines.
 
-**Once this lands the app is closed and every browser test fails.** Phase 6 should
-follow immediately rather than at the end of the project.
+Pulled forward from Phase 5, because a gate needs somewhere to send people and
+an account to let in: `scripts/user-add.ts` (`pnpm user:add`), `/login`, the
+sign-in and sign-out actions, and a sign-out control in the rail's footer.
 
-Specific holes to close:
-- `src/app/api/export/route.ts` — currently hands the **entire filtered table**
-  to any caller as CSV. The single worst exposure in the app.
-- `src/app/api/search/route.ts` — currently an unauthenticated FTS5 oracle over
-  names, locations and remarks.
-- `src/app/layout.tsx` — calls `railCounts()` and `locationCounts()` at the top
-  of every render. Gate before these, or signed-out requests still hit the
-  database on every page load.
+**No proxy or middleware file.** The coarse redirect turned out to be
+unnecessary: the root layout resolves the user once, and skips the rail's two
+database reads when there is nobody to draw them for, so a signed-out request
+costs one session lookup. Each page redirects itself, which is also why the
+layout does not redirect and cannot loop with `/login`. Less to get wrong, and
+the boundary stays in one kind of place.
+
+Closed in passing: `generateMetadata` on the record and edit pages was reading
+a record to build the page title, which would have named a record to a
+stranger. It now declines to look.
+
+Verified over HTTP against a built server: signed out, every page 307s to
+`/login` and both APIs return 401; with a valid session cookie every page is
+200 and the export returns all rows; a forged cookie is refused. Then in a real
+browser via the new `scripts/ui/auth.mjs`: the redirect, the form, a wrong
+password and an unknown address producing byte-identical errors, signing in,
+the session carrying across pages, signing out, and the app being closed again.
 
 ### Phase 4 — Attribution
 Thread the current user into the mutating helpers in `src/lib/queries.ts`; write
 `activity` rows. Surface the author on notes first, since notes are already
 presented as a running commentary and have an obvious place to put a name.
 
-### Phase 5 — Screens and flows
+### Phase 5 — Screens and flows (partly done in Phase 3)
 - `/login` — server action, **deliberately vague errors** ("Email or password is
   incorrect"), so the form is not a user-enumeration oracle.
 - Sign out — POST that revokes the session *row*, not merely the cookie.

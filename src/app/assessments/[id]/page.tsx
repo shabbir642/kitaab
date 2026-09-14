@@ -15,10 +15,13 @@ import { deleteRecordsAction, updateFieldAction } from "@/app/actions";
 import { getAssessment, listNotes } from "@/lib/queries";
 import { OVERDUE_DAYS, warningsFor } from "@/lib/schema";
 import { daysBetween, formatDateTime, todayIso } from "@/lib/utils";
+import { currentUser, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  // No user, no lookup: the title would otherwise name a record to a stranger.
+  if (!(await currentUser())) return { title: "Kitaab" };
   const { id } = await params;
   const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
   return { title: record ? record.assessmentId : "Record" };
@@ -31,6 +34,8 @@ export default async function RecordPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string }>;
 }) {
+  await requireUser();
+
   const { id } = await params;
   const { saved } = await searchParams;
   const numericId = Number(id);

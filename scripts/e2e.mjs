@@ -118,6 +118,16 @@ let cdp;
 try {
   cdp = await connect(await findTarget());
   await cdp.send("Page.enable");
+  // The app is closed, so the browser has to arrive already signed in.
+  // pnpm test:ui creates the user and session and passes the token here.
+  if (!process.env.TEST_SESSION) {
+    console.error("TEST_SESSION is not set - run this through `pnpm test:ui`.");
+    process.exit(2);
+  }
+  await cdp.send("Network.enable");
+  await cdp.send("Network.setCookie", {
+    name: "kitaab_session", value: process.env.TEST_SESSION, url: BASE,
+  });
   await cdp.send("Runtime.enable");
 
   const evaluate = async (expression) => {

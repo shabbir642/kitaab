@@ -15,6 +15,7 @@ import {
 import { OVERDUE_DAYS, warningsFor } from "@/lib/schema";
 import { headerFor } from "@/lib/views";
 import { daysBetween, todayIso } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Records" };
 
@@ -25,6 +26,8 @@ export default async function AssessmentsPage({
 }: {
   searchParams: Promise<RawParams>;
 }) {
+  await requireUser();
+
   const raw = await searchParams;
   const filters = parseFilters(raw);
   const { title, description } = headerFor(filters);

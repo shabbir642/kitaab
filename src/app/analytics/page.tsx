@@ -19,6 +19,7 @@ import {
 } from "@/lib/queries";
 import { headerFor } from "@/lib/views";
 import { formatMonth, pct } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Analytics" };
 
@@ -29,6 +30,8 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<RawParams>;
 }) {
+  await requireUser();
+
   const raw = await searchParams;
   const filters = parseFilters(raw);
 

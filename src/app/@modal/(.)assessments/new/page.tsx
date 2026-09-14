@@ -4,6 +4,7 @@ import { PasteForm } from "@/components/PasteForm";
 import { RecordForm } from "@/components/RecordForm";
 import { allAssessors, allLocations } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ export default async function NewRecordModal({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
+  await requireUser();
+
   const { mode } = await searchParams;
   const paste = mode === "paste";
   const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
