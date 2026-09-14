@@ -23,7 +23,7 @@ export default async function LoginPage() {
         <LoginForm />
         <p className="mt-6 text-[11px] text-ink-muted">
           No account yet?{" "}
-          <Link href="/signup" className="text-ink-secondary underline underline-offset-2 hover:text-ink">
+          <Link href="/signup" className="inline-block py-2.5 text-ink-secondary underline underline-offset-2 hover:text-ink">
             Create one
           </Link>
         </p>

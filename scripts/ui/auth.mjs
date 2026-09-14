@@ -116,6 +116,40 @@ await goto("/assessments");
 ok("and the app is closed again", /\/login$/.test(await ev(`location.pathname`)),
    await ev(`location.pathname`));
 
+/* ---- 6. on a phone ---- */
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 390, height: 844, deviceScaleFactor: 3, mobile: true,
+});
+const visible = "main input:not([type=hidden]), main button, main a";
+for (const path of ["/login", "/signup"]) {
+  await goto(path);
+  ok(path + " does not scroll sideways on a phone",
+     await ev(`document.documentElement.scrollWidth <= window.innerWidth`),
+     await ev(`document.documentElement.scrollWidth + ' vs ' + window.innerWidth`));
+  ok(path + " keeps everything on screen",
+     await ev(`![...document.querySelectorAll('main *')].some(e => e.getBoundingClientRect().right > window.innerWidth + 1)`));
+  // Below 16px, iOS Safari zooms the page the moment a field is focused and
+  // the reader has to pinch back out.
+  ok(path + " inputs do not trigger iOS zoom",
+     await ev(`[...document.querySelectorAll('main input:not([type=hidden])')]
+       .every(i => parseFloat(getComputedStyle(i).fontSize) >= 16)`));
+  ok(path + " has thumb-sized targets",
+     await ev(`[...document.querySelectorAll(${JSON.stringify(visible)})]
+       .filter(e => e.getBoundingClientRect().height > 0)
+       .every(e => e.getBoundingClientRect().height >= 32)`),
+     await ev(`[...document.querySelectorAll(${JSON.stringify(visible)})]
+       .filter(e => e.getBoundingClientRect().height > 0 && e.getBoundingClientRect().height < 32)
+       .map(e => (e.name || e.textContent.trim().slice(0,12)) + ':' + Math.round(e.getBoundingClientRect().height))
+       .join(', ')`));
+}
+
+// and that it still works at that size, rather than merely fitting
+await goto("/login");
+await signInWith(EMAIL, PASSWORD);
+ok("signing in works on a phone", /\/assessments/.test(await ev(`location.pathname`)),
+   await ev(`location.pathname`));
+await send("Emulation.clearDeviceMetricsOverride");
+
 console.log(fails === 0 ? "\nALL PASS" : `\n${fails} FAILED`);
 ch.kill();
 process.exit(fails === 0 ? 0 : 1);

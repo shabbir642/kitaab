@@ -70,7 +70,9 @@ export function SignupForm() {
 
 function input(invalid: boolean) {
   return [
-    "w-full rounded-md border bg-surface px-2.5 py-1.5 text-xs text-ink focus:outline-none",
+    // 16px on phones: iOS Safari zooms the page for anything smaller, and the
+    // user has to pinch back out. The app's 12px from sm up.
+    "w-full rounded-md border bg-surface px-2.5 py-2 text-[16px] text-ink focus:outline-none sm:py-1.5 sm:text-xs",
     invalid ? "border-[var(--status-critical)]" : "border-hairline focus:border-hairline-strong",
   ].join(" ");
 }

@@ -36,7 +36,7 @@ export function LoginForm() {
           autoFocus
           autoComplete="username"
           spellCheck={false}
-          className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-xs text-ink focus:border-hairline-strong focus:outline-none"
+          className="w-full rounded-md border bg-surface px-2.5 py-2 text-[16px] text-ink focus:outline-none sm:py-1.5 sm:text-xs border-hairline focus:border-hairline-strong"
         />
       </label>
 
@@ -47,7 +47,7 @@ export function LoginForm() {
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-xs text-ink focus:border-hairline-strong focus:outline-none"
+          className="w-full rounded-md border bg-surface px-2.5 py-2 text-[16px] text-ink focus:outline-none sm:py-1.5 sm:text-xs border-hairline focus:border-hairline-strong"
         />
       </label>
 
