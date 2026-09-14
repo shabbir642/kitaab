@@ -1,6 +1,6 @@
 # Kitaab — authentication plan
 
-Status: **Phases 1-3 done** - the app is closed. Written 14 September 2026.
+Status: **Phases 1-4 done** - the app is closed and records are per-user. Written 14 September 2026.
 
 Kitaab holds assessment records describing real people. Locally the app binds to
 `127.0.0.1` precisely so it is unreachable, and the README says in as many words
@@ -8,8 +8,8 @@ that this must not change without authentication first. The Vercel deployment is
 a public URL, so that promise currently holds on the laptop and not on the
 internet. This document is the plan for closing that gap.
 
-Scope: email and password sign-in, a real users table, and activity attributed
-to the person who caused it.
+Scope: email and password sign-in, a real users table, and records that belong
+to the person who created them.
 
 ---
 
@@ -18,9 +18,10 @@ to the person who caused it.
 | Decision | Choice | Why not the alternative |
 |---|---|---|
 | Identity | email + password | Asked for. A shared passphrase cannot attribute an edit to anyone. |
+| Roles | **admin, maintainer** | An admin sees the whole table; a maintainer sees only what they created. Carried by one `Actor` value through the query layer, required at every call site so a missing scope is a type error rather than a leak. |
 | Password hashing | **`node:crypto` scrypt** | `argon2` is a better KDF, but every good implementation is a native module. `@libsql/client` already forced `serverExternalPackages` in `next.config.ts`; a second prebuilt binary in the bundle path is a known cost for a marginal gain at this scale. scrypt is in Node, tuned by parameters, and has no build story. |
 | Session | **opaque token in a `sessions` table** | A signed JWT is stateless and cannot be revoked without inventing a deny-list — which is a sessions table with extra steps. There is already a database one query away. |
-| Signup | **closed; users are created by an admin** | Open registration on a public URL means anyone who finds the link reads every record. Invite-by-admin is the correct shape for a small known team. |
+| Signup | **open, and always produces a maintainer** | Open registration was the wrong call while every account saw every record. It is sound now that visibility is per-user: someone who finds the page gets an empty app, not a copy of the data. The admin role stays CLI-only. |
 | Password reset | **admin-triggered, not self-service email** | Self-service needs a mail provider (Resend/Postmark) and a reset-token table. Deferred, not designed out — §8. |
 | Sessions store | same libSQL database as everything else | Same engine local and remote, so sign-in behaves identically in both homes. No Redis, no second dependency. |
 
@@ -238,10 +239,41 @@ browser via the new `scripts/ui/auth.mjs`: the redirect, the form, a wrong
 password and an unknown address producing byte-identical errors, signing in,
 the session carrying across pages, signing out, and the app being closed again.
 
-### Phase 4 — Attribution
-Thread the current user into the mutating helpers in `src/lib/queries.ts`; write
-`activity` rows. Surface the author on notes first, since notes are already
-presented as a running commentary and have an obvious place to put a name.
+### Phase 4 — Attribution and visibility — **done**
+`created_by` / `updated_by` are stamped on every write, and they are now load
+bearing: they *are* the visibility rule. One `Actor` (`{ id, role }`) threads
+through the query layer carrying both the WHERE clause and the id to stamp, so
+the two cannot drift apart.
+
+The actor is a **required** argument on every function touching assessments.
+That is the whole safety property: a missed call site is a compile error, not a
+silent leak. Making it optional on `createAssessment` immediately let the paste
+importer through unscoped - caught only because the omission was looked for.
+
+Scoped: the list, every facet and flag count, the rail's absolute counts, the
+location menu, analytics, CSV export, quick search, and notes - which join back
+to their record rather than trusting the id they were handed. A count of records
+you cannot open is still a disclosure.
+
+Deliberately **not** scoped: `assessmentIdExists`. IDs are unique across the
+whole table, so a maintainer must be told about a collision with a record they
+cannot see.
+
+Foreign keys are enforced by this driver, so an actor id must be a real user or
+NULL - a placeholder id is a constraint violation. Scripts act as
+`{ id: null, role: "admin" }`.
+
+Rows created before accounts existed have `created_by` NULL, which matches no
+maintainer: they are admin-only. Still not backfilled.
+
+The `activity` table exists but nothing writes to it yet - see section 8.
+
+Verified: 33 assertions in `pnpm check` covering list, direct-id read, update,
+delete, inline edits, extras, notes, aggregates, rail counts, filter menus,
+export and search; plus ownerless rows and global ID uniqueness. Then over HTTP
+with three real sessions: two maintainers see only their own record in the list
+and the CSV, a direct URL to another's record is a 404, the search API returns
+nothing, and the admin sees both.
 
 ### Phase 5 — Screens and flows (partly done in Phase 3)
 - `/login` — server action, **deliberately vague errors** ("Email or password is

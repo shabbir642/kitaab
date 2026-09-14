@@ -78,7 +78,7 @@ ok("signed out, records redirect to sign-in", /\/login$/.test(await ev(`location
    await ev(`location.pathname`));
 ok("the sign-in form is there", await ev(`!!document.querySelector('input[name="email"]')`));
 ok("no shell is drawn for a stranger", !(await ev(`!!document.querySelector('aside')`)));
-ok("sign-up is not offered", !(await ev(`/sign up|register|create account/i.test(document.body.innerText)`)));
+ok("sign-up is offered", await ev(`!!document.querySelector('a[href="/signup"]')`));
 
 /* ---- 2. a wrong password says nothing useful ---- */
 await signInWith(EMAIL, "definitely-not-the-password");

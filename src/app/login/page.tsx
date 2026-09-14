@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/LoginForm";
 import { currentUser } from "@/lib/session";
@@ -21,7 +22,10 @@ export default async function LoginPage() {
         </div>
         <LoginForm />
         <p className="mt-6 text-[11px] text-ink-muted">
-          Accounts are created by an administrator.
+          No account yet?{" "}
+          <Link href="/signup" className="text-ink-secondary underline underline-offset-2 hover:text-ink">
+            Create one
+          </Link>
         </p>
       </div>
     </main>
