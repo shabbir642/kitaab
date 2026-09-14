@@ -66,6 +66,17 @@ export function FacetMenu({
       <div
         className={cn(
           "absolute z-20 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-hairline bg-surface-raised p-1 shadow-lg thin-scroll",
+          // A fixed-width panel anchored to its trigger runs off the right edge
+          // of a phone as soon as that trigger is anywhere but the far left.
+          // Below sm it spans the screen instead, with a margin either side.
+          // Fixed with no top resolves to where it would have sat anyway, so it
+          // still opens under its trigger.
+          //
+          // Only once open: fixed positioning escapes the hiding a browser
+          // applies to a closed <details>, so an always-fixed panel would lay
+          // its contents out - off screen, unreachable, but there to be found
+          // by anything measuring the page.
+          "max-sm:group-open:fixed max-sm:group-open:inset-x-3 max-sm:group-open:w-auto max-sm:group-open:max-w-none",
           width,
           align === "end" ? "right-0" : "left-0",
         )}

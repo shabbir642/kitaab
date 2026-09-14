@@ -58,7 +58,7 @@ function Tab({
       replace
       scroll={false}
       className={cn(
-        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:flex max-sm:min-h-8 max-sm:items-center",
         active ? "bg-surface-sunken text-ink" : "text-ink-secondary hover:text-ink",
       )}
     >

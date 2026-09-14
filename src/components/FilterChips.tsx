@@ -112,7 +112,7 @@ export function FilterChips({
             type="button"
             onClick={() => commit(c.remove)}
             aria-label={`Remove ${c.field} ${c.value}`}
-            className="-m-2 p-2 text-ink-muted hover:text-ink"
+            className="-m-2 grid min-h-8 min-w-8 place-items-center p-2 text-ink-muted hover:text-ink"
           >
             <X size={11} strokeWidth={2.5} />
           </button>

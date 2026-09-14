@@ -38,7 +38,7 @@ export default async function EditRecordPage({
       <div>
         <Link
           href={`/assessments/${record.id}`}
-          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink"
+          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:py-2"
         >
           <ArrowLeft size={13} strokeWidth={2} />
           Back to the record

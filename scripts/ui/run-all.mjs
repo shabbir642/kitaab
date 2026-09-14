@@ -22,6 +22,7 @@ const SUITES = [
   "scripts/ui/list.mjs",
   "scripts/ui/palette.mjs",
   "scripts/ui/record.mjs",
+  "scripts/ui/mobile.mjs",
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

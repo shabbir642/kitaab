@@ -64,7 +64,7 @@ export function Notes({ assessmentId, notes }: { assessmentId: number; notes: No
                   <button
                     type="submit"
                     aria-label="Delete this note"
-                    className="rounded p-0.5 text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/note:opacity-100"
+                    className="grid place-items-center rounded p-0.5 text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/note:opacity-100 max-sm:size-8 max-sm:opacity-100"
                   >
                     <Trash2 size={11} strokeWidth={2} />
                   </button>
@@ -85,7 +85,7 @@ function AddButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-7 rounded-md px-2.5 text-[11px] font-semibold text-accent-ink disabled:opacity-60"
+      className="h-7 rounded-md px-2.5 text-[11px] font-semibold text-accent-ink disabled:opacity-60 max-sm:h-9 max-sm:px-4 max-sm:text-xs"
       style={{ background: "var(--accent)" }}
     >
       {pending ? "Adding…" : "Add note"}

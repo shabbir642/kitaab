@@ -68,7 +68,7 @@ export function InlineText({
             type="button"
             onClick={() => setEditing(true)}
             aria-label={`Edit ${label}`}
-            className="flex items-center gap-1 rounded px-1 text-[10px] text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/field:opacity-100"
+            className="flex items-center gap-1 rounded px-1 text-[10px] text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/field:opacity-100 max-sm:min-h-8 max-sm:px-2 max-sm:text-xs max-sm:opacity-100"
           >
             <Pencil size={10} strokeWidth={2} />
             Edit

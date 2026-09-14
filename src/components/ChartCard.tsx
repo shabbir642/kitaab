@@ -112,7 +112,7 @@ function Toggle({
       aria-label={label}
       aria-controls={controls}
       className={cn(
-        "grid size-6 place-items-center rounded transition-colors",
+        "grid size-6 place-items-center rounded transition-colors max-sm:size-8",
         active ? "bg-surface-sunken text-ink" : "text-ink-muted hover:text-ink",
       )}
     >

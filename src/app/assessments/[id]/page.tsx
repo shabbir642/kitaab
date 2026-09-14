@@ -72,7 +72,7 @@ export default async function RecordPage({
       <div>
         <Link
           href="/assessments"
-          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink"
+          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:py-2"
         >
           <ArrowLeft size={13} strokeWidth={2} />
           Back to records
@@ -92,7 +92,7 @@ export default async function RecordPage({
           <div className="ml-auto flex items-center gap-1.5">
             <Link
               href={`/assessments/${record.id}/edit`}
-              className="flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink"
+              className="flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink max-sm:h-9"
               style={{ background: "var(--accent)" }}
             >
               <Pencil size={13} strokeWidth={2.25} />
@@ -103,7 +103,7 @@ export default async function RecordPage({
               <input type="hidden" name="returnTo" value="/assessments" />
               <button
                 type="submit"
-                className="flex h-[30px] items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium hover:bg-surface-sunken"
+                className="flex h-[30px] items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium hover:bg-surface-sunken max-sm:h-9"
               >
                 <Trash2 size={13} strokeWidth={2} style={{ color: "var(--status-critical)" }} />
                 Delete
