@@ -67,7 +67,8 @@ Cookie flags: `httpOnly`, `secure` in production, `sameSite=lax`, `path=/`,
 
 | File | Holds |
 |---|---|
-| `src/lib/auth.ts` | hashing, session create/verify/revoke, `currentUser()`, `requireUser()` |
+| `src/lib/auth.ts` | hashing, users, session create/verify/revoke, throttling, `signIn()` |
+| `src/lib/session.ts` | the cookie half: `currentUser()`, `requireUser()`, `requireAdmin()` |
 | `src/app/login/page.tsx` | the sign-in screen |
 | `src/app/account/page.tsx` | change your own password |
 | `src/app/admin/users/page.tsx` | admin-only user management |
