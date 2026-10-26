@@ -13,9 +13,10 @@ import {
 import { first, pushSchema, run } from "../src/lib/db.ts";
 import { activityFor, recentActivity } from "../src/lib/activity.ts";
 import {
-  MAX_ATTEMPTS, clearAttempts, createSession, createUser, deactivateUser, emailTaken,
-  findUserByEmail, findUserById, hashPassword, hashToken, revokeOtherSessions,
-  revokeSession, signIn, userForToken, verifyPassword,
+  MAX_ATTEMPTS, MIN_PASSWORD, clearAttempts, createSession, createUser, deactivateUser,
+  emailTaken, findUserByEmail, findUserById, generatePassword, hashPassword, hashToken,
+  listUsers, passwordHashFor, revokeOtherSessions, revokeSession, setPassword, signIn,
+  userForToken, verifyPassword,
 } from "../src/lib/auth.ts";
 
 /* No request, no signed-in user: these run as an admin so every read sees the
@@ -31,6 +32,7 @@ const clearFixture = async () => {
     "DELETE FROM notes WHERE assessment_id IN (SELECT id FROM assessments WHERE assessment_id = 'CHK-001')",
   );
   await run("DELETE FROM assessments WHERE assessment_id = 'CHK-001'");
+  await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-PAGE-%'");
 };
 await clearFixture();
 
@@ -107,9 +109,31 @@ ok("multi-level sort actually orders", await (async () => {
 ok("default page size is 10", parseFilters({}).perPage === 10);
 ok("perPage clamped to options", parseFilters({ perPage: "99999" }).perPage === 10);
 
+/* Paging brings its own rows. A scratch database holds a handful, and "page 2"
+   of a one-page table silently tests the clamp instead - which is how this
+   assertion spent a while failing for a reason that had nothing to do with
+   paging. */
+await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-PAGE-%'");
+for (let i = 0; i < 30; i++) {
+  await createAssessment(
+    assessmentInput.parse({ assessmentId: `CHK-PAGE-${i}`, name: `Paging row ${i}` }),
+    "manual",
+    null,
+  );
+}
+
 const paged = await listAssessments(f({ perPage: "25", page: "2" }), ADMIN);
-ok("pagination page 2", paged.page === 2 && paged.items.length <= 25);
+ok("pagination page 2", paged.page === 2 && paged.items.length <= 25, {
+  page: paged.page, got: paged.items.length, total: paged.total,
+});
+ok("page 2 does not repeat page 1", await (async () => {
+  const one = await listAssessments(f({ perPage: "25", page: "1" }), ADMIN);
+  const seen = new Set(one.items.map((r) => r.id));
+  return paged.items.every((r) => !seen.has(r.id));
+})());
 ok("page beyond end clamps", (await listAssessments(f({ page: "99999", perPage: "25" }), ADMIN)).page === paged.pageCount);
+
+await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-PAGE-%'");
 
 ok("facet counts non-empty", (await facetCounts(f({}), "surveyStatus", ADMIN)).size > 0);
 ok("every flag is counted", Object.keys(await flagCounts(f({}), ADMIN)).length === FLAGS.length);
@@ -258,11 +282,30 @@ ok("a different IP and address is unaffected", !elsewhere.ok && elsewhere.reason
 await clearAttempts("chk-user@example.com", throttleIp);
 ok("cleared attempts let the user back in", (await signIn("chk-user@example.com", "pw-one", throttleIp)).ok);
 
+/* Changing a password. The sessions are the interesting half: the one doing
+   the changing has to survive it, or every password change signs you out. */
+const { token: keep } = await createSession(uid);
+const { token: elsewhereToken } = await createSession(uid);
+await setPassword(uid, "pw-two");
+ok("the new password works", (await verifyPassword("pw-two", (await passwordHashFor(uid))!)));
+ok("the old password does not", !(await verifyPassword("pw-one", (await passwordHashFor(uid))!)));
+ok("changing a password alone revokes nothing", (await userForToken(keep))?.id === uid);
+await revokeOtherSessions(uid, keep);
+ok("this session survives the change", (await userForToken(keep))?.id === uid);
+ok("every other session does not", (await userForToken(elsewhereToken)) === undefined);
+ok("generated passwords clear the minimum", generatePassword().length >= MIN_PASSWORD);
+ok("generated passwords are not repeated", generatePassword() !== generatePassword());
+await setPassword(uid, "pw-one");
+
 const { token: live } = await createSession(uid);
 await deactivateUser(uid);
 ok("deactivated user cannot be found", (await findUserById(uid)) === undefined);
 ok("deactivating kills live sessions", (await userForToken(live)) === undefined);
 ok("address is reusable after deactivation", !(await emailTaken("chk-user@example.com")));
+ok("listUsers leaves out the deactivated",
+   !(await listUsers()).some((u) => u.email === "chk-user@example.com"));
+ok("listUsers carries no password hash",
+   (await listUsers()).every((u) => !("passwordHash" in u) && !("password_hash" in u)));
 
 /* ---- visibility: admins see everything, maintainers see only their own ---- */
 const clearScopeFixture = async () => {

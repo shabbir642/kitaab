@@ -7,7 +7,12 @@
  * Deliberately includes messy rows (blank dates, statuses that contradict the
  * dates, an unspecified location) so the filters, warnings and analytics have
  * something real to chew on.
+ *
+ * It also creates the development account, because the app is closed behind a
+ * sign-in and data/app.db is untracked: without this the first `pnpm dev`
+ * after a fresh clone is a login screen nobody can get past.
  */
+import { createUser, findUserByEmail } from "../src/lib/auth.ts";
 import { db, describeTarget, first, IS_LOCAL_FILE, pushSchema, run } from "../src/lib/db.ts";
 
 if (!IS_LOCAL_FILE && !process.argv.includes("--remote")) {
@@ -19,6 +24,32 @@ if (!IS_LOCAL_FILE && !process.argv.includes("--remote")) {
 }
 
 await pushSchema();
+
+/* The development account.
+
+   An admin, not a maintainer: the rows below are inserted by a script and so
+   have no created_by, which makes them invisible to anybody but an admin. A
+   maintainer here would sign in successfully to an empty app and look like a
+   bug.
+
+   Local file only, and never on --remote. A published password is only
+   acceptable against a database that is recreated on demand. */
+const DEV_EMAIL = "dev@kitaab.test";
+const DEV_PASSWORD = "kitaab-dev";
+
+if (IS_LOCAL_FILE) {
+  if (await findUserByEmail(DEV_EMAIL)) {
+    console.log(`development account ${DEV_EMAIL} already exists`);
+  } else {
+    await createUser({
+      email: DEV_EMAIL,
+      password: DEV_PASSWORD,
+      name: "Dev",
+      role: "admin",
+    });
+    console.log(`created development account ${DEV_EMAIL} / ${DEV_PASSWORD}`);
+  }
+}
 
 const RESET = process.argv.includes("--reset");
 const COUNT = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 420);
