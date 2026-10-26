@@ -1,5 +1,7 @@
 import { all, first, run, type InValue } from "./db";
 import { DEFAULT_SORTS, SORTABLE, type Filters } from "./filters";
+import type { Role } from "./auth";
+import { logActivity } from "./activity";
 import {
   OVERDUE_DAYS,
   PHASES,
@@ -100,9 +102,37 @@ function placeholders(n: number): string {
   return Array.from({ length: n }, () => "?").join(", ");
 }
 
-export function buildWhere(f: Filters): { sql: string; params: InValue[] } {
-  const clauses: string[] = ["deleted_at IS NULL"];
-  const params: InValue[] = [];
+/* ---------------------------------------------------------------------------
+   Who is asking.
+
+   An admin sees every record; a maintainer sees only the ones they created.
+   The actor carries both facts - the visibility rule and the id to stamp on a
+   write - so the two cannot drift apart.
+
+   Every function that touches assessments takes one, deliberately: a missing
+   scope is then a type error at the call site rather than a silent leak.
+
+   Note that `created_by = ?` also excludes the rows that predate accounts,
+   whose created_by is NULL. Records imported before there were users belong to
+   nobody, so only an admin sees them. That is the safe reading.
+--------------------------------------------------------------------------- */
+
+/* id is nullable so that a script - which has no signed-in user - can still
+   act as an admin without inventing a user id. Foreign keys are enforced here,
+   so a made-up id is a constraint violation, not a harmless placeholder. A
+   maintainer always has a real one. */
+export type Actor = { id: number | null; role: Role };
+
+function visibleTo(a: Actor): { sql: string; params: InValue[] } {
+  return a.role === "admin"
+    ? { sql: "1=1", params: [] }
+    : { sql: "created_by = ?", params: [a.id] };
+}
+
+export function buildWhere(f: Filters, actor: Actor): { sql: string; params: InValue[] } {
+  const scope = visibleTo(actor);
+  const clauses: string[] = ["deleted_at IS NULL", scope.sql];
+  const params: InValue[] = [...scope.params];
 
   const match = f.q ? ftsQuery(f.q) : null;
   if (match) {
@@ -168,8 +198,8 @@ export type ListResult = {
   pageCount: number;
 };
 
-export async function listAssessments(f: Filters): Promise<ListResult> {
-  const { sql: where, params } = buildWhere(f);
+export async function listAssessments(f: Filters, actor: Actor): Promise<ListResult> {
+  const { sql: where, params } = buildWhere(f, actor);
 
   const counted = await first<{ n: number }>(
     `SELECT COUNT(*) AS n FROM assessments WHERE ${where}`,
@@ -200,9 +230,10 @@ export async function listAssessments(f: Filters): Promise<ListResult> {
 export async function facetCounts(
   f: Filters,
   facet: "surveyStatus" | "completionStatus" | "location",
+  actor: Actor,
 ): Promise<Map<string, number>> {
   const cleared: Filters = { ...f, [facet]: [] } as Filters;
-  const { sql: where, params } = buildWhere(cleared);
+  const { sql: where, params } = buildWhere(cleared, actor);
   const col =
     facet === "surveyStatus" ? "survey_status"
     : facet === "completionStatus" ? "completion_status"
@@ -220,8 +251,8 @@ export async function facetCounts(
   return out;
 }
 
-export async function flagCounts(f: Filters): Promise<Record<string, number>> {
-  const { sql: where, params } = buildWhere({ ...f, flags: [] });
+export async function flagCounts(f: Filters, actor: Actor): Promise<Record<string, number>> {
+  const { sql: where, params } = buildWhere({ ...f, flags: [] }, actor);
   const r = await first<Record<string, number | null>>(
     `SELECT
        SUM(CASE WHEN ${SQL_OVERDUE} THEN 1 ELSE 0 END)            AS overdue,
@@ -243,22 +274,28 @@ export async function flagCounts(f: Filters): Promise<Record<string, number>> {
 
 /** Every location on record - the filter dropdown needs the full list, not
  *  just the ones surviving the current filter. */
-export async function allLocations(): Promise<string[]> {
+export async function allLocations(actor: Actor): Promise<string[]> {
+  const scope = visibleTo(actor);
   return (
     await all<{ location: string }>(
       `SELECT DISTINCT location FROM assessments
-       WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
+       WHERE deleted_at IS NULL AND ${scope.sql}
+         AND location IS NOT NULL AND location <> ''
        ORDER BY location COLLATE NOCASE`,
+      scope.params,
     )
   ).map((r) => r.location);
 }
 
-export async function allAssessors(): Promise<string[]> {
+export async function allAssessors(actor: Actor): Promise<string[]> {
+  const scope = visibleTo(actor);
   return (
     await all<{ assessor: string }>(
       `SELECT DISTINCT assessor FROM assessments
-       WHERE deleted_at IS NULL AND assessor IS NOT NULL AND assessor <> ''
+       WHERE deleted_at IS NULL AND ${scope.sql}
+         AND assessor IS NOT NULL AND assessor <> ''
        ORDER BY assessor COLLATE NOCASE`,
+      scope.params,
     )
   ).map((r) => r.assessor);
 }
@@ -267,10 +304,12 @@ export async function allAssessors(): Promise<string[]> {
    CRUD
 --------------------------------------------------------------------------- */
 
-export async function getAssessment(id: number): Promise<Assessment | null> {
+export async function getAssessment(id: number, actor: Actor): Promise<Assessment | null> {
+  const scope = visibleTo(actor);
   const r = await first<Row>(
-    `SELECT ${SELECT_COLS} FROM assessments WHERE id = ? AND deleted_at IS NULL`,
-    [id],
+    `SELECT ${SELECT_COLS} FROM assessments
+     WHERE id = ? AND deleted_at IS NULL AND ${scope.sql}`,
+    [id, ...scope.params],
   );
   return r ? toAssessment(r) : null;
 }
@@ -279,6 +318,8 @@ export async function assessmentIdExists(
   assessmentId: string,
   exceptId?: number,
 ): Promise<boolean> {
+  // Unscoped on purpose: the ID is unique across the whole table, so a
+  // maintainer must collide with a record they cannot see.
   const r = await first<{ id: number }>(
     `SELECT id FROM assessments
      WHERE assessment_id = ? AND deleted_at IS NULL AND id <> ?`,
@@ -287,51 +328,75 @@ export async function assessmentIdExists(
   return !!r;
 }
 
+/* actor is required and nullable rather than optional: a script seeding rows
+   has no owner to name, but an app call site must not be able to forget one by
+   leaving the argument off. Explicit null says "belongs to nobody". */
 export async function createAssessment(
   input: AssessmentInput,
-  origin: "manual" | "import" = "manual",
+  origin: "manual" | "import",
+  actor: Actor | null,
 ): Promise<number> {
   const stamp = now();
   const info = await run(
     `INSERT INTO assessments
       (assessment_id, name, location, assessor, survey_date, survey_status,
-       completion_date, completion_status, remarks, origin, extras, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
+       completion_date, completion_status, remarks, origin, extras, created_at, updated_at,
+       created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?, ?)`,
     [
       input.assessmentId, input.name, input.location, input.assessor,
       input.surveyDate, input.surveyStatus ?? null,
       input.completionDate, input.completionStatus ?? null,
       input.remarks, origin, stamp, stamp,
+      actor?.id ?? null, actor?.id ?? null,
     ],
   );
+  await logActivity(actor?.id ?? null, "create", "assessment", info.lastInsertRowid, {
+    assessmentId: input.assessmentId,
+    origin,
+  });
   return info.lastInsertRowid;
 }
 
-export async function updateAssessment(id: number, input: AssessmentInput): Promise<void> {
-  await run(
+export async function updateAssessment(
+  id: number,
+  input: AssessmentInput,
+  actor: Actor,
+): Promise<void> {
+  const scope = visibleTo(actor);
+  const changed = await run(
     `UPDATE assessments SET
        assessment_id = ?, name = ?, location = ?, assessor = ?,
        survey_date = ?, survey_status = ?, completion_date = ?,
-       completion_status = ?, remarks = ?, updated_at = ?
-     WHERE id = ? AND deleted_at IS NULL`,
+       completion_status = ?, remarks = ?, updated_at = ?, updated_by = ?
+     WHERE id = ? AND deleted_at IS NULL AND ${scope.sql}`,
     [
       input.assessmentId, input.name, input.location, input.assessor,
       input.surveyDate, input.surveyStatus ?? null,
       input.completionDate, input.completionStatus ?? null,
-      input.remarks, now(), id,
+      input.remarks, now(), actor.id, id, ...scope.params,
     ],
   );
+  // Only if a row actually moved: a maintainer aiming at a record they cannot
+  // see changes nothing, and must not leave a trail saying otherwise.
+  if (changed.changes > 0) {
+    await logActivity(actor.id, "update", "assessment", id, { assessmentId: input.assessmentId });
+  }
 }
 
 /** Soft delete - rows stay recoverable straight from the database. */
-export async function deleteAssessments(ids: number[]): Promise<number> {
+export async function deleteAssessments(ids: number[], actor: Actor): Promise<number> {
   if (!ids.length) return 0;
+  const scope = visibleTo(actor);
   const stamp = now();
   const info = await run(
-    `UPDATE assessments SET deleted_at = ?, updated_at = ?
-     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
-    [stamp, stamp, ...ids],
+    `UPDATE assessments SET deleted_at = ?, updated_at = ?, updated_by = ?
+     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL AND ${scope.sql}`,
+    [stamp, stamp, actor.id, ...ids, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "delete", "assessment", null, { ids, deleted: info.changes });
+  }
   return info.changes;
 }
 
@@ -339,13 +404,18 @@ export async function bulkSetStatus(
   ids: number[],
   field: "survey_status" | "completion_status",
   value: string,
+  actor: Actor,
 ): Promise<number> {
   if (!ids.length) return 0;
+  const scope = visibleTo(actor);
   const info = await run(
-    `UPDATE assessments SET ${field} = ?, updated_at = ?
-     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL`,
-    [value, now(), ...ids],
+    `UPDATE assessments SET ${field} = ?, updated_at = ?, updated_by = ?
+     WHERE id IN (${placeholders(ids.length)}) AND deleted_at IS NULL AND ${scope.sql}`,
+    [value, now(), actor.id, ...ids, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "status", "assessment", null, { ids, field, value });
+  }
   return info.changes;
 }
 
@@ -363,8 +433,8 @@ export type Summary = {
   medianDaysToComplete: number | null;
 };
 
-export async function summary(f: Filters): Promise<Summary> {
-  const { sql: where, params } = buildWhere(f);
+export async function summary(f: Filters, actor: Actor): Promise<Summary> {
+  const { sql: where, params } = buildWhere(f, actor);
 
   // Independent queries, so they go together rather than one after the other.
   const [r, durationRows] = await Promise.all([
@@ -413,10 +483,11 @@ export type StatusSlice = { status: string; count: number };
 export async function statusBreakdown(
   f: Filters,
   phase: "survey" | "completion",
+  actor: Actor,
 ): Promise<StatusSlice[]> {
   const def = PHASES.find((p) => p.key === phase)!;
   const col = def.statusField === "surveyStatus" ? "survey_status" : "completion_status";
-  const { sql: where, params } = buildWhere(f);
+  const { sql: where, params } = buildWhere(f, actor);
 
   const counts = new Map<string, number>();
   for (const r of await all<{ v: string | null; n: number }>(
@@ -439,8 +510,8 @@ export type MonthPoint = { month: string; surveys: number; completions: number }
 
 /** Monthly survey vs completion counts over a contiguous month axis (gaps are
  *  filled with zeros, so a quiet month reads as a dip rather than vanishing). */
-export async function monthlyActivity(f: Filters, months = 12): Promise<MonthPoint[]> {
-  const { sql: where, params } = buildWhere(f);
+export async function monthlyActivity(f: Filters, actor: Actor, months = 12): Promise<MonthPoint[]> {
+  const { sql: where, params } = buildWhere(f, actor);
 
   const grab = async (col: string) => {
     const m = new Map<string, number>();
@@ -478,8 +549,8 @@ export async function monthlyActivity(f: Filters, months = 12): Promise<MonthPoi
 
 export type LocationRow = { location: string; total: number; completed: number };
 
-export async function byLocation(f: Filters, top = 8): Promise<LocationRow[]> {
-  const { sql: where, params } = buildWhere(f);
+export async function byLocation(f: Filters, actor: Actor, top = 8): Promise<LocationRow[]> {
+  const { sql: where, params } = buildWhere(f, actor);
   const rows = (
     await all<{ location: string | null; total: number; completed: number }>(
       `SELECT COALESCE(NULLIF(location, ''), '(unspecified)') AS location,
@@ -507,8 +578,8 @@ export async function byLocation(f: Filters, top = 8): Promise<LocationRow[]> {
 }
 
 /** Full filtered set, unpaginated - used by CSV export. */
-export async function exportRows(f: Filters): Promise<Assessment[]> {
-  const { sql: where, params } = buildWhere(f);
+export async function exportRows(f: Filters, actor: Actor): Promise<Assessment[]> {
+  const { sql: where, params } = buildWhere(f, actor);
   return (
     await all<Row>(
       `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
@@ -533,7 +604,8 @@ export type RailCounts = {
   unscheduled: number;
 };
 
-export async function railCounts(): Promise<RailCounts> {
+export async function railCounts(actor: Actor): Promise<RailCounts> {
+  const scope = visibleTo(actor);
   const r = await first<Record<string, number | null>>(
     `SELECT
        COUNT(*)                                                  AS all_,
@@ -541,7 +613,8 @@ export async function railCounts(): Promise<RailCounts> {
        SUM(CASE WHEN ${SQL_AWAITING} THEN 1 ELSE 0 END)          AS awaiting,
        SUM(CASE WHEN ${SQL_HAS_ISSUES} THEN 1 ELSE 0 END)        AS issues,
        SUM(CASE WHEN survey_date IS NULL THEN 1 ELSE 0 END)      AS unscheduled
-     FROM assessments WHERE deleted_at IS NULL`,
+     FROM assessments WHERE deleted_at IS NULL AND ${scope.sql}`,
+    scope.params,
   );
   return {
     all: Number(r?.all_ ?? 0),
@@ -553,12 +626,16 @@ export async function railCounts(): Promise<RailCounts> {
 }
 
 export async function locationCounts(
+  actor: Actor,
   limit = 4,
 ): Promise<{ location: string; count: number; total: number }[]> {
+  const scope = visibleTo(actor);
   const rows = await all<{ location: string; n: number }>(
     `SELECT location, COUNT(*) AS n FROM assessments
-     WHERE deleted_at IS NULL AND location IS NOT NULL AND location <> ''
+     WHERE deleted_at IS NULL AND ${scope.sql}
+       AND location IS NOT NULL AND location <> ''
      GROUP BY location ORDER BY n DESC, location COLLATE NOCASE`,
+    scope.params,
   );
   return rows.slice(0, limit).map((r) => ({
     location: r.location,
@@ -568,8 +645,8 @@ export async function locationCounts(
 }
 
 /** Small, fast lookup for the command palette. */
-export async function quickSearch(q: string, limit = 6): Promise<Assessment[]> {
-  const { sql: where, params } = buildWhere({ ...EMPTY_FILTERS, q });
+export async function quickSearch(q: string, actor: Actor, limit = 6): Promise<Assessment[]> {
+  const { sql: where, params } = buildWhere({ ...EMPTY_FILTERS, q }, actor);
   return (
     await all<Row>(
       `SELECT ${SELECT_COLS} FROM assessments WHERE ${where}
@@ -600,13 +677,16 @@ export type Note = {
   createdAt: string;
 };
 
-export async function listNotes(assessmentId: number): Promise<Note[]> {
+export async function listNotes(assessmentId: number, actor: Actor): Promise<Note[]> {
+  const scope = visibleTo(actor);
   return (
     await all<{ id: number; assessment_id: number; body: string; created_at: string }>(
-      `SELECT id, assessment_id, body, created_at FROM notes
-       WHERE assessment_id = ? AND deleted_at IS NULL
-       ORDER BY created_at DESC, id DESC`,
-      [assessmentId],
+      `SELECT n.id, n.assessment_id, n.body, n.created_at FROM notes n
+       JOIN assessments a ON a.id = n.assessment_id
+       WHERE n.assessment_id = ? AND n.deleted_at IS NULL
+         AND a.deleted_at IS NULL AND ${scope.sql.replace("created_by", "a.created_by")}
+       ORDER BY n.created_at DESC, n.id DESC`,
+      [assessmentId, ...scope.params],
     )
   ).map((r) => ({
     id: r.id,
@@ -616,20 +696,37 @@ export async function listNotes(assessmentId: number): Promise<Note[]> {
   }));
 }
 
-export async function addNote(assessmentId: number, body: string): Promise<number> {
+export async function addNote(assessmentId: number, body: string, actor: Actor): Promise<number> {
+  const scope = visibleTo(actor);
   const info = await run(
-    `INSERT INTO notes (assessment_id, body, created_at) VALUES (?, ?, ?)`,
-    [assessmentId, body, now()],
+    `INSERT INTO notes (assessment_id, body, created_at, author_id)
+     SELECT a.id, ?, ?, ?
+       FROM assessments a
+      WHERE a.id = ? AND a.deleted_at IS NULL
+        AND ${scope.sql.replace("created_by", "a.created_by")}`,
+    [body, now(), actor.id, assessmentId, ...scope.params],
   );
+  if (info.changes > 0) {
+    await logActivity(actor.id, "create", "note", info.lastInsertRowid, { assessmentId });
+  }
   return info.lastInsertRowid;
 }
 
-export async function deleteNote(noteId: number, assessmentId: number): Promise<number> {
+export async function deleteNote(
+  noteId: number,
+  assessmentId: number,
+  actor: Actor,
+): Promise<number> {
+  const scope = visibleTo(actor);
   const info = await run(
     `UPDATE notes SET deleted_at = ?
-     WHERE id = ? AND assessment_id = ? AND deleted_at IS NULL`,
-    [now(), noteId, assessmentId],
+     WHERE id = ? AND assessment_id = ? AND deleted_at IS NULL
+       AND assessment_id IN (
+         SELECT id FROM assessments WHERE deleted_at IS NULL AND ${scope.sql}
+       )`,
+    [now(), noteId, assessmentId, ...scope.params],
   );
+  if (info.changes > 0) await logActivity(actor.id, "delete", "note", noteId, { assessmentId });
   return info.changes;
 }
 
@@ -648,35 +745,47 @@ export async function updateInlineField(
   id: number,
   field: InlineField,
   value: string | null,
+  actor: Actor,
 ): Promise<void> {
-  await run(
-    `UPDATE assessments SET ${INLINE_FIELDS[field]} = ?, updated_at = ?
-     WHERE id = ? AND deleted_at IS NULL`,
-    [value, now(), id],
+  const scope = visibleTo(actor);
+  const changed = await run(
+    `UPDATE assessments SET ${INLINE_FIELDS[field]} = ?, updated_at = ?, updated_by = ?
+     WHERE id = ? AND deleted_at IS NULL AND ${scope.sql}`,
+    [value, now(), actor.id, id, ...scope.params],
   );
+  if (changed.changes > 0) await logActivity(actor.id, "update", "assessment", id, { field });
 }
 
 /** Custom fields live in the `extras` JSON blob - the room a record has to
  *  carry information this app never modelled. */
-export async function setExtra(id: number, key: string, value: string): Promise<void> {
-  const current = await getAssessment(id);
+export async function setExtra(
+  id: number,
+  key: string,
+  value: string,
+  actor: Actor,
+): Promise<void> {
+  const current = await getAssessment(id, actor);
   if (!current) return;
   const next = { ...current.extras, [key]: value };
-  await run(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`, [
-    JSON.stringify(next),
-    now(),
-    id,
-  ]);
+  const scope = visibleTo(actor);
+  await run(
+    `UPDATE assessments SET extras = ?, updated_at = ?, updated_by = ?
+     WHERE id = ? AND ${scope.sql}`,
+    [JSON.stringify(next), now(), actor.id, id, ...scope.params],
+  );
+  await logActivity(actor.id, "update", "assessment", id, { extra: key });
 }
 
-export async function removeExtra(id: number, key: string): Promise<void> {
-  const current = await getAssessment(id);
+export async function removeExtra(id: number, key: string, actor: Actor): Promise<void> {
+  const current = await getAssessment(id, actor);
   if (!current) return;
   const next = { ...current.extras };
   delete next[key];
-  await run(`UPDATE assessments SET extras = ?, updated_at = ? WHERE id = ?`, [
-    JSON.stringify(next),
-    now(),
-    id,
-  ]);
+  const scope = visibleTo(actor);
+  await run(
+    `UPDATE assessments SET extras = ?, updated_at = ?, updated_by = ?
+     WHERE id = ? AND ${scope.sql}`,
+    [JSON.stringify(next), now(), actor.id, id, ...scope.params],
+  );
+  await logActivity(actor.id, "update", "assessment", id, { removedExtra: key });
 }

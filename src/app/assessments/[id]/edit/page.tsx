@@ -3,12 +3,16 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { RecordForm } from "@/components/RecordForm";
 import { allAssessors, allLocations, getAssessment } from "@/lib/queries";
+import { currentUser, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  // No user, no lookup: the title would otherwise name a record to a stranger.
+  const viewer = await currentUser();
+  if (!viewer) return { title: "Kitaab" };
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
+  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id), viewer) : null;
   return { title: record ? `Edit ${record.assessmentId}` : "Edit record" };
 }
 
@@ -19,11 +23,13 @@ export default async function EditRecordPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const actor = await requireUser();
+
   const { id } = await params;
   const [record, locations, assessors] = await Promise.all([
-    Number.isInteger(Number(id)) ? getAssessment(Number(id)) : null,
-    allLocations(),
-    allAssessors(),
+    Number.isInteger(Number(id)) ? getAssessment(Number(id), actor) : null,
+    allLocations(actor),
+    allAssessors(actor),
   ]);
   if (!record) notFound();
 
@@ -32,7 +38,7 @@ export default async function EditRecordPage({
       <div>
         <Link
           href={`/assessments/${record.id}`}
-          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink"
+          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:py-2"
         >
           <ArrowLeft size={13} strokeWidth={2} />
           Back to the record

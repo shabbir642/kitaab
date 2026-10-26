@@ -34,6 +34,16 @@ const evaluate = async (expr) => {
   return r.result.result.value;
 };
 await send("Page.enable"); await send("Runtime.enable");
+// The app is closed, so the browser has to arrive already signed in.
+// pnpm test:ui creates the user and session and passes the token here.
+if (!process.env.TEST_SESSION) {
+  console.error("TEST_SESSION is not set - run this through `pnpm test:ui`.");
+  process.exit(2);
+}
+await send("Network.enable");
+await send("Network.setCookie", {
+  name: "kitaab_session", value: process.env.TEST_SESSION, url: BASE,
+});
 await send("Page.navigate",{url: BASE + "/assessments"});
 await sleep(4000);
 

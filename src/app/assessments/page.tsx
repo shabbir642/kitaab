@@ -15,6 +15,7 @@ import {
 import { OVERDUE_DAYS, warningsFor } from "@/lib/schema";
 import { headerFor } from "@/lib/views";
 import { daysBetween, todayIso } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Records" };
 
@@ -25,6 +26,8 @@ export default async function AssessmentsPage({
 }: {
   searchParams: Promise<RawParams>;
 }) {
+  const actor = await requireUser();
+
   const raw = await searchParams;
   const filters = parseFilters(raw);
   const { title, description } = headerFor(filters);
@@ -33,12 +36,12 @@ export default async function AssessmentsPage({
   // hosted database, so they go together.
   const [result, surveyFacet, completionFacet, locationFacet, flags, locations] =
     await Promise.all([
-      listAssessments(filters),
-      facetCounts(filters, "surveyStatus"),
-      facetCounts(filters, "completionStatus"),
-      facetCounts(filters, "location"),
-      flagCounts(filters),
-      allLocations(),
+      listAssessments(filters, actor),
+      facetCounts(filters, "surveyStatus", actor),
+      facetCounts(filters, "completionStatus", actor),
+      facetCounts(filters, "location", actor),
+      flagCounts(filters, actor),
+      allLocations(actor),
     ]);
 
   const facets = {

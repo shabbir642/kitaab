@@ -4,6 +4,7 @@ import { PasteForm } from "@/components/PasteForm";
 import { RecordForm } from "@/components/RecordForm";
 import { allAssessors, allLocations } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Add records" };
 
@@ -14,16 +15,18 @@ export default async function NewRecordPage({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
+  const actor = await requireUser();
+
   const { mode } = await searchParams;
   const paste = mode === "paste";
-  const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
+  const [locations, assessors] = await Promise.all([allLocations(actor), allAssessors(actor)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
       <div>
         <Link
           href="/assessments"
-          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink"
+          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:py-2"
         >
           <ArrowLeft size={13} strokeWidth={2} />
           Back to records
@@ -64,7 +67,7 @@ function Tab({
     <Link
       href={href}
       className={cn(
-        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:flex max-sm:min-h-8 max-sm:items-center",
         active ? "bg-surface-sunken text-ink" : "text-ink-secondary hover:text-ink",
       )}
     >

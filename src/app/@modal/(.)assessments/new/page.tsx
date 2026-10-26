@@ -4,6 +4,7 @@ import { PasteForm } from "@/components/PasteForm";
 import { RecordForm } from "@/components/RecordForm";
 import { allAssessors, allLocations } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,11 @@ export default async function NewRecordModal({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
+  const actor = await requireUser();
+
   const { mode } = await searchParams;
   const paste = mode === "paste";
-  const [locations, assessors] = await Promise.all([allLocations(), allAssessors()]);
+  const [locations, assessors] = await Promise.all([allLocations(actor), allAssessors(actor)]);
 
   return (
     <Modal
@@ -55,7 +58,7 @@ function Tab({
       replace
       scroll={false}
       className={cn(
-        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:flex max-sm:min-h-8 max-sm:items-center",
         active ? "bg-surface-sunken text-ink" : "text-ink-secondary hover:text-ink",
       )}
     >

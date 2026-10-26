@@ -24,6 +24,7 @@ import {
   type InlineField,
 } from "@/lib/queries";
 import { PASTE_COLUMNS } from "@/lib/paste";
+import { requireUser } from "@/lib/session";
 
 export type FormState = {
   ok: boolean;
@@ -63,6 +64,7 @@ export async function saveRecord(
   _prev: FormState,
   fd: FormData,
 ): Promise<FormState> {
+  const actor = await requireUser();
   const parsed = assessmentInput.safeParse(readForm(fd));
   if (!parsed.success) {
     return { ok: false, message: "Fix the highlighted fields.", fieldErrors: flatten(parsed.error) };
@@ -76,23 +78,24 @@ export async function saveRecord(
   }
 
   if (id == null) {
-    const newId = await createAssessment(parsed.data, "manual");
+    const newId = await createAssessment(parsed.data, "manual", actor);
     revalidatePath("/assessments");
     redirect(`/assessments/${newId}?saved=1`);
   }
 
-  await updateAssessment(id, parsed.data);
+  await updateAssessment(id, parsed.data, actor);
   revalidatePath("/assessments");
   revalidatePath(`/assessments/${id}`);
   return { ok: true, message: "Saved." };
 }
 
 export async function deleteRecordsAction(fd: FormData): Promise<void> {
+  const actor = await requireUser();
   const ids = fd
     .getAll("id")
     .map((v) => Number(v))
     .filter((n) => Number.isInteger(n) && n > 0);
-  await deleteAssessments(ids);
+  await deleteAssessments(ids, actor);
   revalidatePath("/assessments");
   const back = fd.get("returnTo");
   if (typeof back === "string" && back.startsWith("/")) redirect(back);
@@ -100,6 +103,7 @@ export async function deleteRecordsAction(fd: FormData): Promise<void> {
 }
 
 export async function bulkStatusAction(fd: FormData): Promise<void> {
+  const actor = await requireUser();
   const ids = fd
     .getAll("id")
     .map((v) => Number(v))
@@ -108,7 +112,7 @@ export async function bulkStatusAction(fd: FormData): Promise<void> {
   const value = String(fd.get("value") ?? "");
   const allowed: readonly string[] =
     field === "survey_status" ? SURVEY_STATUSES : COMPLETION_STATUSES;
-  if (allowed.includes(value)) await bulkSetStatus(ids, field, value);
+  if (allowed.includes(value)) await bulkSetStatus(ids, field, value, actor);
   revalidatePath("/assessments");
   const back = fd.get("returnTo");
   if (typeof back === "string" && back.startsWith("/")) redirect(back);
@@ -136,6 +140,7 @@ export async function pasteRecordsAction(
   _prev: PasteState,
   fd: FormData,
 ): Promise<PasteState> {
+  const actor = await requireUser();
   const text = String(fd.get("rows") ?? "");
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return { ok: false, message: "Nothing to add - paste at least one row." };
@@ -174,7 +179,7 @@ export async function pasteRecordsAction(
       continue;
     }
     seenInBatch.add(key);
-    await createAssessment(parsed.data, "manual");
+    await createAssessment(parsed.data, "manual", actor);
     created++;
   }
 
@@ -208,22 +213,24 @@ function revalidateRecord(id: number) {
 }
 
 export async function addNoteAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const actor = await requireUser();
   const id = recordId(fd);
   const body = String(fd.get("body") ?? "").trim();
   if (id == null) return { ok: false, message: "Unknown record." };
   if (!body) return { ok: false, message: "Write something first." };
   if (body.length > 8000) return { ok: false, message: "That note is too long (8000 characters max)." };
 
-  await addNote(id, body);
+  await addNote(id, body, actor);
   revalidateRecord(id);
   return { ok: true };
 }
 
 export async function deleteNoteAction(fd: FormData): Promise<void> {
+  const actor = await requireUser();
   const id = recordId(fd);
   const noteId = Number(fd.get("noteId"));
   if (id == null || !Number.isInteger(noteId)) return;
-  await deleteNote(noteId, id);
+  await deleteNote(noteId, id, actor);
   revalidateRecord(id);
 }
 
@@ -232,10 +239,11 @@ export async function updateFieldAction(
   field: InlineField,
   value: string,
 ): Promise<FormState> {
+  const actor = await requireUser();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
   if (!(field in INLINE_FIELDS)) return { ok: false, message: "Unknown field." };
   const trimmed = value.trim();
-  await updateInlineField(id, field, trimmed === "" ? null : trimmed);
+  await updateInlineField(id, field, trimmed === "" ? null : trimmed, actor);
   revalidateRecord(id);
   return { ok: true };
 }
@@ -245,21 +253,23 @@ export async function setExtraAction(
   key: string,
   value: string,
 ): Promise<FormState> {
+  const actor = await requireUser();
   const name = key.trim();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, message: "Unknown record." };
   if (!name) return { ok: false, message: "Give the field a name." };
   if (name.length > 64) return { ok: false, message: "Field name is too long (64 characters max)." };
   if (value.length > 2000) return { ok: false, message: "Value is too long (2000 characters max)." };
 
-  await setExtra(id, name, value.trim());
+  await setExtra(id, name, value.trim(), actor);
   revalidateRecord(id);
   return { ok: true };
 }
 
 export async function removeExtraAction(fd: FormData): Promise<void> {
+  const actor = await requireUser();
   const id = recordId(fd);
   const key = String(fd.get("key") ?? "");
   if (id == null || !key) return;
-  await removeExtra(id, key);
+  await removeExtra(id, key, actor);
   revalidateRecord(id);
 }

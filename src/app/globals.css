@@ -127,3 +127,26 @@
   background-clip: content-box;
 }
 .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Phone-sized screens only.
+
+   iOS Safari zooms the whole page when a focused field's text is smaller than
+   16px, and the reader then has to pinch back out to see anything. The app's
+   dense 11-12px fields are right on a desktop and wrong the moment a thumb is
+   involved, so they are lifted for the duration - and given a tap target worth
+   aiming at while we are here.
+
+   Done once here rather than per component: there are a dozen forms, and the
+   next one added should not have to remember. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select {
+    min-height: 40px;
+  }
+}

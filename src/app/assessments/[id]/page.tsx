@@ -15,12 +15,16 @@ import { deleteRecordsAction, updateFieldAction } from "@/app/actions";
 import { getAssessment, listNotes } from "@/lib/queries";
 import { OVERDUE_DAYS, warningsFor } from "@/lib/schema";
 import { daysBetween, formatDateTime, todayIso } from "@/lib/utils";
+import { currentUser, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  // No user, no lookup: the title would otherwise name a record to a stranger.
+  const viewer = await currentUser();
+  if (!viewer) return { title: "Kitaab" };
   const { id } = await params;
-  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id)) : null;
+  const record = Number.isInteger(Number(id)) ? await getAssessment(Number(id), viewer) : null;
   return { title: record ? record.assessmentId : "Record" };
 }
 
@@ -31,6 +35,8 @@ export default async function RecordPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string }>;
 }) {
+  const actor = await requireUser();
+
   const { id } = await params;
   const { saved } = await searchParams;
   const numericId = Number(id);
@@ -39,8 +45,8 @@ export default async function RecordPage({
   // The notes key off the id in the URL, not off the record, so both reads go
   // together.
   const [record, notes] = await Promise.all([
-    getAssessment(numericId),
-    listNotes(numericId),
+    getAssessment(numericId, actor),
+    listNotes(numericId, actor),
   ]);
   if (!record) notFound();
 
@@ -66,7 +72,7 @@ export default async function RecordPage({
       <div>
         <Link
           href="/assessments"
-          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink"
+          className="inline-flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:py-2"
         >
           <ArrowLeft size={13} strokeWidth={2} />
           Back to records
@@ -86,7 +92,7 @@ export default async function RecordPage({
           <div className="ml-auto flex items-center gap-1.5">
             <Link
               href={`/assessments/${record.id}/edit`}
-              className="flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink"
+              className="flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-accent-ink max-sm:h-9"
               style={{ background: "var(--accent)" }}
             >
               <Pencil size={13} strokeWidth={2.25} />
@@ -97,7 +103,7 @@ export default async function RecordPage({
               <input type="hidden" name="returnTo" value="/assessments" />
               <button
                 type="submit"
-                className="flex h-[30px] items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium hover:bg-surface-sunken"
+                className="flex h-[30px] items-center gap-1.5 rounded-md border border-hairline px-2.5 text-xs font-medium hover:bg-surface-sunken max-sm:h-9"
               >
                 <Trash2 size={13} strokeWidth={2} style={{ color: "var(--status-critical)" }} />
                 Delete

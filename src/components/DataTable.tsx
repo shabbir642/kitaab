@@ -28,7 +28,7 @@ const COLUMNS: {
   { key: "location", label: "Location", width: "112px" },
   { key: "surveyDate", label: "Progress", width: "254px" },
   { key: "assessor", label: "Assessor", width: "116px" },
-  { key: null, label: "Age", width: "68px", align: "right" },
+  { key: null, label: "Remarks", width: "240px" },
 ];
 
 export function DataTable({
@@ -284,11 +284,6 @@ export function DataTable({
                       </span>
                     )}
                   </span>
-                  {r.remarks && (
-                    <span className="mt-0.5 block truncate text-[11px] text-ink-muted" title={r.remarks}>
-                      {r.remarks}
-                    </span>
-                  )}
                 </td>
                 <td className="pr-4 text-xs text-ink-secondary">
                   {r.location ?? <span className="text-ink-muted">—</span>}
@@ -306,11 +301,17 @@ export function DataTable({
                 <td className="pr-4 text-xs text-ink-secondary">
                   {r.assessor ?? <span className="text-ink-muted">—</span>}
                 </td>
-                <td
-                  className="pr-1 text-right text-xs font-medium tabular-nums"
-                  style={{ color: r.overdueDays != null ? "var(--status-critical)" : undefined }}
-                >
-                  {r.overdueDays != null ? `${r.overdueDays}d` : ""}
+                <td className="pr-4 text-xs text-ink-secondary">
+                  {r.remarks ? (
+                    // Clamped rather than truncated to one line: two lines of a
+                    // remark is usually the whole point of it. The full text is
+                    // on the title, and on the record page.
+                    <span className="line-clamp-2" title={r.remarks}>
+                      {r.remarks}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}

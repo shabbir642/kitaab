@@ -14,7 +14,10 @@ import {
   Plus,
   Search,
   TriangleAlert,
+  UserRound,
+  Users,
 } from "lucide-react";
+import { SignOut } from "./SignOut";
 import { ThemeToggle } from "./ThemeToggle";
 import { parseFilters, type RawParams } from "@/lib/filters";
 import type { RailCounts } from "@/lib/queries";
@@ -48,6 +51,8 @@ export function Rail({
   counts,
   locations,
   locationTotal,
+  userName,
+  userRole,
   onOpenPalette,
   open,
   collapsed,
@@ -57,6 +62,8 @@ export function Rail({
   counts: RailCounts;
   locations: { location: string; count: number }[];
   locationTotal: number;
+  userName: string;
+  userRole: "admin" | "maintainer";
   onOpenPalette: () => void;
   /** is the mobile drawer showing (ignored from lg, where the rail is a column) */
   open: boolean;
@@ -159,6 +166,40 @@ export function Rail({
           <Plus size={14} strokeWidth={2.5} />
           <span className={cn(collapsed && "lg:hidden")}>New record</span>
         </Link>
+        <Link
+          href="/analytics"
+          onClick={onClose}
+          title={collapsed ? "Analytics" : undefined}
+          aria-current={pathname === "/analytics" ? "page" : undefined}
+          className={cn(
+            "flex h-11 items-center gap-2 rounded-md text-[12.5px] transition-colors lg:h-[30px]",
+            collapsed ? "lg:h-9 lg:justify-center" : "px-2",
+            pathname === "/analytics"
+              ? "bg-surface font-medium text-ink"
+              : "text-ink-secondary hover:bg-surface hover:text-ink",
+          )}
+        >
+          <BarChart3 size={14} strokeWidth={1.75} className="shrink-0" />
+          <span className={cn(collapsed && "lg:hidden")}>Analytics</span>
+        </Link>
+        {userRole === "admin" && (
+          <Link
+            href="/admin/users"
+            onClick={onClose}
+            title={collapsed ? "People" : undefined}
+            aria-current={pathname === "/admin/users" ? "page" : undefined}
+            className={cn(
+              "flex h-11 items-center gap-2 rounded-md text-[12.5px] transition-colors lg:h-[30px]",
+              collapsed ? "lg:h-9 lg:justify-center" : "px-2",
+              pathname === "/admin/users"
+                ? "bg-surface font-medium text-ink"
+                : "text-ink-secondary hover:bg-surface hover:text-ink",
+            )}
+          >
+            <Users size={14} strokeWidth={1.75} className="shrink-0" />
+            <span className={cn(collapsed && "lg:hidden")}>People</span>
+          </Link>
+        )}
       </div>
 
       <div className={cn(collapsed ? "lg:px-2" : "px-2.5")}>
@@ -264,23 +305,22 @@ export function Rail({
             ⌘K
           </kbd>
         </button>
-        <span className={cn("h-4 w-px bg-hairline", collapsed && "lg:hidden")} aria-hidden />
-        <Link
-          href="/analytics"
-          onClick={onClose}
-          title={collapsed ? "Analytics" : undefined}
-          aria-current={pathname === "/analytics" ? "page" : undefined}
-          className={cn(
-            "flex h-11 items-center gap-[7px] text-[12.5px] transition-colors lg:h-auto",
-            collapsed && "lg:grid lg:size-9 lg:place-items-center",
-            pathname === "/analytics" ? "font-medium text-ink" : "text-ink-secondary hover:text-ink",
-          )}
-        >
-          <BarChart3 size={14} strokeWidth={1.75} className="shrink-0" />
-          <span className={cn(collapsed && "lg:hidden")}>Analytics</span>
-        </Link>
-        <span className={cn("ml-auto", collapsed && "lg:ml-0")}>
+        <span className={cn("ml-auto flex items-center gap-0.5", collapsed && "lg:ml-0")}>
           <ThemeToggle />
+          <Link
+            href="/account"
+            onClick={onClose}
+            title={`Signed in as ${userName} - your account`}
+            aria-label={`Signed in as ${userName} - your account`}
+            aria-current={pathname === "/account" ? "page" : undefined}
+            className={cn(
+              "grid size-8 place-items-center rounded-md border border-hairline transition-colors hover:bg-surface-sunken hover:text-ink",
+              pathname === "/account" ? "text-ink" : "text-ink-secondary",
+            )}
+          >
+            <UserRound size={14} strokeWidth={1.75} />
+          </Link>
+          <SignOut name={userName} />
         </span>
       </div>
     </aside>

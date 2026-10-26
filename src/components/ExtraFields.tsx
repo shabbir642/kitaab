@@ -50,7 +50,7 @@ export function ExtraFields({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="ml-auto flex items-center gap-1 rounded-md border border-dashed border-hairline-strong px-2 py-1 text-[11px] text-ink-secondary hover:text-ink"
+            className="ml-auto flex items-center gap-1 rounded-md border border-dashed border-hairline-strong px-2 py-1 text-[11px] text-ink-secondary hover:text-ink max-sm:min-h-8 max-sm:px-3 max-sm:text-xs"
           >
             <Plus size={11} strokeWidth={2.5} />
             Add field
@@ -128,7 +128,7 @@ export function ExtraFields({
                 <button
                   type="submit"
                   aria-label={`Remove ${k}`}
-                  className="rounded p-1 text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/extra:opacity-100"
+                  className="grid place-items-center rounded p-1 text-ink-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/extra:opacity-100 max-sm:size-8 max-sm:opacity-100"
                 >
                   <Trash2 size={11} strokeWidth={2} />
                 </button>

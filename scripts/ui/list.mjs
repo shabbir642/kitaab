@@ -53,6 +53,16 @@ const clickText = (t) => ev(`(() => {
 })()`);
 
 await send("Page.enable"); await send("Runtime.enable");
+// The app is closed, so the browser has to arrive already signed in.
+// pnpm test:ui creates the user and session and passes the token here.
+if (!process.env.TEST_SESSION) {
+  console.error("TEST_SESSION is not set - run this through `pnpm test:ui`.");
+  process.exit(2);
+}
+await send("Network.enable");
+await send("Network.setCookie", {
+  name: "kitaab_session", value: process.env.TEST_SESSION, url: BASE,
+});
 let fails = 0;
 const ok = (n,c,x) => { if(!c){fails++;console.log("FAIL ",n,x??"")} else console.log("ok   ",n) };
 
@@ -73,8 +83,10 @@ ok("page count is the total over 10 per page", !!pages &&
 
 /* ---- 3. inline keyword search ---- */
 ok("search box lives in the list header", await ev(`!!document.querySelector('input[aria-label="Filter records by keyword"]')`));
+// :not([type=hidden]) because the sign-out form carries React's hidden
+// server-action field, which is not a search box.
 ok("rail no longer carries a search box",
-   !(await ev(`!!document.querySelector('aside input')`)));
+   !(await ev(`!!document.querySelector('aside input:not([type=hidden])')`)));
 await setInput('input[aria-label="Filter records by keyword"]', "kochi");
 await sleep(1800);
 ok("typing filters the list in place", /[?&]q=kochi/.test(await ev(`location.href`)), await ev(`location.href`));
