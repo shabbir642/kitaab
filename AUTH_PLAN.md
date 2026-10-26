@@ -330,14 +330,15 @@ shown once and never again, a wrong current password refused, no way to
 deactivate yourself) is not something the data layer can answer. The mobile
 suite walks both new screens too.
 
-`pnpm check` passes against the local database. The failures noted here earlier
-were assertions that assume a populated one, and `pagination page 2` was the
-worst of them: it was testing the clamp rather than paging on a database too
-small to have a second page, so it now brings its own rows. Five remain - three
-analytics assertions, `byLocation` and one filter count - and they still fail on
-an *empty* scratch database, which is how the file's own header says to run it.
-They predate all of this work and have nothing to do with auth, but the fix is
-the same one paging just had: bring the rows you are asserting about.
+`pnpm check` passes, on the local database and on an empty scratch one - which
+is how the file's own header says to run it, and where the six failures noted
+here earlier all lived. None of them had anything to do with auth: each was a
+test reporting on its fixtures rather than on the code, passing on a seeded
+database by luck. Paging was asserting "page 2" against a table with one page,
+so it was testing the clamp; the filter count asserted "more than one row" when
+the claim is that an unrecognised value changes nothing; and the analytics
+assertions wanted several locations and some finished journeys. They each bring
+what they measure now, and clean it up afterwards.
 
 `pnpm smoke` gained the missing piece: given `--url`, it checks over real HTTP
 that a signed-out page is sent to `/login` and that both API routes answer 401.

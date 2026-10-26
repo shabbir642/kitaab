@@ -33,6 +33,7 @@ const clearFixture = async () => {
   );
   await run("DELETE FROM assessments WHERE assessment_id = 'CHK-001'");
   await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-PAGE-%'");
+  await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-LOC-%'");
 };
 await clearFixture();
 
@@ -84,7 +85,12 @@ ok("FTS finds by name token", (await listAssessments(f({ q: "renamed" }), ADMIN)
 ok("FTS survives symbol-heavy input", (await listAssessments(f({ q: "CHK-001" }), ADMIN)).items.some((r) => r.id === id));
 ok("FTS does not crash on quote/paren junk", (await listAssessments(f({ q: '") OR 1=1 --' }), ADMIN)).total >= 0);
 ok("status facet filters", (await listAssessments(f({ completionStatus: "On Hold" }), ADMIN)).items.some((r) => r.id === id));
-ok("bogus status value ignored", (await listAssessments(f({ completionStatus: "Nonsense" }), ADMIN)).total > 1);
+// An unrecognised value is dropped, so the result is the unfiltered list -
+// which is the actual claim. "More than one row" was a fact about whatever
+// happened to be in the database.
+ok("bogus status value ignored",
+   (await listAssessments(f({ completionStatus: "Nonsense" }), ADMIN)).total ===
+     (await listAssessments(f({}), ADMIN)).total);
 ok("date range filters",
    (await listAssessments(f({ surveyFrom: "2026-06-01", surveyTo: "2026-06-01" }), ADMIN)).items.some((r) => r.id === id));
 ok("origin filter", (await listAssessments(f({ origin: "manual" }), ADMIN)).items.every((r) => r.origin === "manual"));
@@ -156,13 +162,53 @@ ok("header names the view", headerFor(f({ flags: "overdue" })).title === "Overdu
 ok("header names a bare location", headerFor(f({ location: "Pune" })).title === "Pune");
 ok("header falls back for a compound filter",
    headerFor(f({ flags: "overdue", location: "Pune" })).title === "Filtered records");
+/* Locations and analytics need a shape to measure: several places with
+   different counts, and some finished journeys to take a median of. Asserted
+   against whatever the database happened to hold, these passed on a seeded one
+   and failed on a scratch one - a test reporting on its fixtures rather than on
+   the code. So they bring their own, as paging does. */
+const PLACES: [string, number][] = [
+  ["Alphaville", 4],
+  ["Betatown", 3],
+  ["Gammagar", 2],
+  ["Deltapur", 1],
+];
+await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-LOC-%'");
+let placeSeq = 0;
+for (const [place, n] of PLACES) {
+  for (let i = 0; i < n; i++) {
+    await createAssessment(
+      assessmentInput.parse({
+        assessmentId: `CHK-LOC-${++placeSeq}`,
+        name: `${place} row ${i}`,
+        location: place,
+        surveyDate: "2026-03-01",
+        surveyStatus: "Completed",
+        // Every other one finishes, so there is a turnaround to take a median of
+        // and an open remainder for the completed-vs-open split.
+        ...(i % 2 === 0
+          ? { completionDate: "2026-03-11", completionStatus: "Completed" }
+          : {}),
+      }),
+      "manual",
+      null,
+    );
+  }
+}
+
 const lc = await locationCounts(ADMIN, 3);
-ok("location counts are ordered and carry the total", lc.length === 3 && lc[0].total >= 3);
+ok("location counts are ordered and carry the total",
+   lc.length === 3 &&
+     lc.every((r, i) => i === 0 || lc[i - 1].count >= r.count) &&
+     // the fixtures above, plus CHK-001's own Testville
+     lc[0].total >= PLACES.length + 1,
+   lc);
 
 /* ---- analytics ---- */
 const s = await summary(f({}), ADMIN);
 ok("summary totals consistent", s.total > 0 && s.surveysDone <= s.total && s.completionsDone <= s.total, s);
-ok("median turnaround computed", s.medianDaysToComplete !== null);
+ok("median turnaround computed",
+   s.medianDaysToComplete !== null && s.medianDaysToComplete >= 0, s.medianDaysToComplete);
 const sb = await statusBreakdown(f({}), "survey", ADMIN);
 ok("status breakdown keeps pipeline order", sb[0].status === "Pending" && sb.length >= 5);
 ok("status breakdown sums to total",
@@ -171,8 +217,12 @@ const ma = await monthlyActivity(f({}), ADMIN, 12);
 ok("monthly axis is 12 contiguous months", ma.length === 12 && ma.every((m) => /^\d{4}-\d{2}$/.test(m.month)));
 const bl = await byLocation(f({}), ADMIN, 3);
 ok("byLocation folds tail into Other",
-   bl.length <= 4 && bl.some((r) => r.location.startsWith("Other")), bl.map((r) => r.location));
+   bl.length === 4 && bl.some((r) => r.location.startsWith("Other")), bl.map((r) => r.location));
+ok("byLocation counts completed within each row",
+   bl.every((r) => r.completed <= r.total), bl);
 ok("filtered analytics narrows", (await summary(f({ location: "Testville" }), ADMIN)).total < s.total);
+
+await run("DELETE FROM assessments WHERE assessment_id LIKE 'CHK-LOC-%'");
 
 /* ---- notes ---- */
 ok("no notes to start", (await listNotes(id, ADMIN)).length === 0);
