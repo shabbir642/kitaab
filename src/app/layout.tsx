@@ -45,6 +45,7 @@ export default async function RootLayout({ children, modal }: LayoutProps<"/">) 
             locations={locations.map((l) => ({ location: l.location, count: l.count }))}
             locationTotal={locations[0]?.total ?? 0}
             userName={user.name}
+            userRole={user.role}
           >
             {children}
           </AppShell>

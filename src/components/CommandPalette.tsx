@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   TriangleAlert,
+  UserRound,
 } from "lucide-react";
 import { COMPLETION_STATUSES, SURVEY_STATUSES } from "@/lib/schema";
 import { VIEWS, locationHref, viewHref, type ViewIcon } from "@/lib/views";
@@ -174,6 +175,7 @@ function PaletteBody({
       out.push({ id: "paste", group: "Actions", label: "Paste multiple records", href: "/assessments/new?mode=paste", icon: Plus });
       out.push({ id: "analytics", group: "Actions", label: "Open analytics", href: "/analytics", icon: BarChart3 });
       out.push({ id: "export", group: "Actions", label: "Export current view to CSV", href: "/api/export", icon: Download });
+      out.push({ id: "account", group: "Actions", label: "Your account", href: "/account", icon: UserRound });
     }
 
     return out;

@@ -14,12 +14,14 @@ export function AppShell({
   locations,
   locationTotal,
   userName,
+  userRole,
   children,
 }: {
   counts: RailCounts;
   locations: { location: string; count: number }[];
   locationTotal: number;
   userName: string;
+  userRole: "admin" | "maintainer";
   children: React.ReactNode;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -72,6 +74,7 @@ export function AppShell({
           locations={locations}
           locationTotal={locationTotal}
           userName={userName}
+          userRole={userRole}
           onOpenPalette={() => setPaletteOpen(true)}
           open={drawerOpen}
           collapsed={collapsed}

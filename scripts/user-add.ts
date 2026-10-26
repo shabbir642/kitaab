@@ -1,6 +1,8 @@
 /**
- * Creates a user. There is no sign-up page by design, so this is how the first
- * admin comes into being - and how an account is made against the deployment.
+ * Creates a user. Sign-up makes maintainers and /admin/users needs an admin to
+ * already exist, so this is how the first admin comes into being - and how an
+ * account is made against the deployment, where there is no local database to
+ * seed.
  *
  *   pnpm user:add alice@example.com "Alice Khan" --admin
  *   pnpm user:add bob@example.com "Bob Rao" --password 'chosen-by-them'
@@ -9,8 +11,7 @@
  * With no --password one is generated and printed once. It is not stored
  * anywhere in the clear, so copy it before closing the terminal.
  */
-import { randomBytes } from "node:crypto";
-import { createUser, emailTaken, normalizeEmail } from "../src/lib/auth.ts";
+import { MIN_PASSWORD, createUser, emailTaken, generatePassword, normalizeEmail } from "../src/lib/auth.ts";
 import { describeTarget, pushSchema } from "../src/lib/db.ts";
 
 const argv = process.argv.slice(2);
@@ -44,12 +45,11 @@ if (await emailTaken(email)) {
   process.exit(1);
 }
 
-// base64url, so it survives being pasted anywhere without escaping.
-const password = value("password") ?? randomBytes(12).toString("base64url");
+const password = value("password") ?? generatePassword();
 const generated = !value("password");
 
-if (password.length < 8) {
-  console.error("password must be at least 8 characters");
+if (password.length < MIN_PASSWORD) {
+  console.error(`password must be at least ${MIN_PASSWORD} characters`);
   process.exit(1);
 }
 

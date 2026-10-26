@@ -22,6 +22,7 @@ const SUITES = [
   "scripts/ui/list.mjs",
   "scripts/ui/palette.mjs",
   "scripts/ui/record.mjs",
+  "scripts/ui/people.mjs",
   "scripts/ui/mobile.mjs",
 ];
 

@@ -200,6 +200,15 @@ export async function createUser(input: {
   return lastInsertRowid;
 }
 
+/** One source of generated passwords, shared by `pnpm user:add` and the admin
+ *  screen's reset, so both hand out the same shape of thing: base64url, which
+ *  survives being pasted into a chat window without escaping. */
+export const generatePassword = () => randomBytes(12).toString("base64url");
+
+/** The shortest password the app will accept anywhere - the sign-up form, the
+ *  account screen and the CLI all read it from here. */
+export const MIN_PASSWORD = 8;
+
 export async function setPassword(userId: number, password: string): Promise<void> {
   await run(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, [
     await hashPassword(password),

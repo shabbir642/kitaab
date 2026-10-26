@@ -77,6 +77,8 @@ const PAGES = [
   ["/analytics", "analytics"],
   ["/assessments/new", "the new record form"],
   ["/assessments/new?mode=paste", "the paste form"],
+  ["/account", "the account screen"],
+  ["/admin/users", "the people screen"],
 ];
 
 const recordId = await (async () => {

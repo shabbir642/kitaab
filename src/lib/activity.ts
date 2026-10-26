@@ -21,7 +21,8 @@ export type ActivityAction =
   | "delete"
   | "status"
   | "sign-in"
-  | "sign-up";
+  | "sign-up"
+  | "password";
 
 export type ActivityEntity = "assessment" | "note" | "user";
 
