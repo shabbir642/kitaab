@@ -4,7 +4,10 @@ A dashboard for survey assessment records. See `README.md` for what the app
 does and the full command table — this file is only the things that are easy to
 get wrong.
 
-Current work in flight: `AUTH_PLAN.md`. There is no authentication yet.
+Authentication is in: accounts, sessions, per-user visibility and an audit
+trail. `AUTH_PLAN.md` is the design and the reasoning; what is left of it is
+section 8 and the deployment, which has not happened — `main` is still the
+pre-auth app.
 
 ## Traps
 
@@ -17,8 +20,28 @@ start the app prints `⚠ Kitaab is using a remote <host>` whenever it is not on
 the local file — during `pnpm dev` that means stop and fix it, not carry on.
 
 **Never make the app reachable from the network.** `dev` and `start` bind to
-`127.0.0.1` deliberately: these records describe real people and there is no
-authentication yet. Do not change the host binding.
+`127.0.0.1` deliberately: these records describe real people. There are
+accounts now, but that does not buy back the binding — one boundary is worth
+more than none. Do not change the host binding.
+
+**The actor argument is the safety property.** Every function in
+`src/lib/queries.ts` that touches assessments takes an `Actor` as a *required*
+argument, carrying both the visibility clause and the id to stamp. Do not make
+it optional, and do not add a query that reaches `assessments` without it: a
+missed call site has to be a compile error rather than a silent leak. Scripts
+act as `{ id: null, role: "admin" }`. The one deliberate exception is
+`assessmentIdExists`, because IDs are unique table-wide and a collision must be
+reported even against a record you cannot see.
+
+**`requireUser()` is the boundary, and it lives in each page, server action and
+route handler.** There is no middleware and there should not be: the layout has
+to resolve the user anyway, and Next has had middleware-bypass vulnerabilities.
+A new page without it is simply unprotected. The two API routes return 401
+rather than redirecting, because they answer machines.
+
+**Sign-up is open and always makes a maintainer.** The role is never read from
+a form. Admin comes from `pnpm user:add --admin` or from an existing admin on
+`/admin/users`.
 
 **Destructive scripts need to be asked for.** `trim`, `copy-up --replace`,
 `restore:sql`, `seed --reset`, and anything `:remote` can destroy live data.
@@ -63,3 +86,13 @@ surrounding code rather than adding a new dialect.
 
 Commit messages are sentence-case and describe intent, not mechanics:
 "Make the records list usable on a phone", not "update DataTable.tsx".
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

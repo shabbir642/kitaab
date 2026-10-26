@@ -1,6 +1,10 @@
 # Kitaab — authentication plan
 
-Status: **done** - closed, per-user, and audited. Remaining work is in section 8. Written 14 September 2026.
+Status: **built** - closed, per-user, audited, with the screens and the tests.
+What is left is the deployment (section 6), which has not happened: `main` is
+still the pre-auth app and the live site is still publicly readable. Everything
+else outstanding is section 8, which is deferred work rather than unfinished
+work. Written 14 September 2026, last revised 26 October 2026.
 
 Kitaab holds assessment records describing real people. Locally the app binds to
 `127.0.0.1` precisely so it is unreachable, and the README says in as many words
@@ -75,13 +79,17 @@ Cookie flags: `httpOnly`, `secure` in production, `sameSite=lax`, `path=/`,
 |---|---|
 | `src/lib/auth.ts` | hashing, users, session create/verify/revoke, throttling, `signIn()` |
 | `src/lib/session.ts` | the cookie half: `currentUser()`, `requireUser()`, `requireAdmin()` |
+| `src/lib/activity.ts` | the audit trail |
 | `src/app/login/page.tsx` | the sign-in screen |
+| `src/app/signup/page.tsx` | open registration, maintainers only |
 | `src/app/account/page.tsx` | change your own password |
 | `src/app/admin/users/page.tsx` | admin-only user management |
-| `src/app/auth-actions.ts` | sign in, sign out, change password, admin user actions |
+| `src/app/auth-actions.ts` | sign in, sign out, sign up, change password, admin user actions |
 | `scripts/user-add.ts` | CLI to create the first admin |
-| `src/components/LoginForm.tsx` | the form; `SignOut.tsx` is the rail's control |
+| `src/components/LoginForm.tsx` | the form; `SignupForm` and `PasswordForm` are its siblings, `FormField.tsx` the shapes all three share, `SignOut.tsx` the rail's control |
+| `src/components/UserAdmin.tsx` | the people screen's three buttons, behind one action |
 | `scripts/ui/auth.mjs` | browser suite for the whole sign-in flow |
+| `scripts/ui/people.mjs` | browser suite for `/account` and `/admin/users` |
 
 ---
 
@@ -96,7 +104,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT    NOT NULL,          -- stored lowercased
   password_hash TEXT    NOT NULL,          -- scrypt: salt + params + digest
   name          TEXT    NOT NULL,
-  role          TEXT    NOT NULL DEFAULT 'member',   -- 'admin' | 'member'
+  role          TEXT    NOT NULL DEFAULT 'maintainer',  -- 'admin' | 'maintainer'
   created_at    TEXT    NOT NULL,
   updated_at    TEXT    NOT NULL,
   last_login_at TEXT,
@@ -285,13 +293,26 @@ with three real sessions: two maintainers see only their own record in the list
 and the CSV, a direct URL to another's record is a 404, the search API returns
 nothing, and the admin sees both.
 
-### Phase 5 — Screens and flows (partly done in Phase 3)
+### Phase 5 — Screens and flows — **done** (begun in Phase 3)
 - `/login` — server action, **deliberately vague errors** ("Email or password is
   incorrect"), so the form is not a user-enumeration oracle.
 - Sign out — POST that revokes the session *row*, not merely the cookie.
 - `/account` — change own password; revokes all **other** sessions on success.
+  The current password is required even though the session already proves who
+  you are: a borrowed, unlocked browser should not be able to lock its owner
+  out. The screen also says in as many words that there is no reset email,
+  which beats letting somebody hunt for the link.
 - `/admin/users` — add, deactivate, reset password. Admin only, enforced
-  server-side, not by hiding the link.
+  server-side by `requireAdmin()`; the rail hides the link, which is tidiness,
+  not the gate. Three buttons behind **one** server action, so there is a single
+  place to report what happened - and so a generated password can be handed
+  back through the same reply that renders it, exactly once. Passwords for
+  other people are always generated, never typed by the admin: a typed one
+  exists in two heads and probably in a chat log. Deactivation takes two
+  clicks, because it signs somebody out mid-sentence and the way back is a CLI;
+  the rest of the app deletes on one click, but the rest of the app soft-deletes
+  rows rather than people. You cannot deactivate yourself - you might be the
+  only admin.
 - `pnpm user:add` — creates the first admin, following the existing `scripts/`
   and `--env-file-if-exists` pattern.
 - Throttling — backoff on repeated failures per email and per IP.
@@ -300,14 +321,27 @@ nothing, and the admin sees both.
 `src/lib/schema.ts`, so the auth forms behave like every other form in the app.
 
 ### Phase 6 — Tests, then deployment — **tests done**
-All six browser suites pass against a throwaway database. `pnpm test:ui` now
-creates an account and a session and hands each suite the token; a new suite,
-`scripts/ui/auth.mjs`, covers the sign-in flow itself and deliberately does not
-arrive with a cookie.
+All seven browser suites pass against a throwaway database. `pnpm test:ui`
+creates an account and a session and hands each suite the token; `auth.mjs`
+covers the sign-in flow itself and deliberately does not arrive with a cookie,
+and `people.mjs` covers `/account` and `/admin/users` - the two screens worth
+driving a browser for, since what matters about them (a generated password
+shown once and never again, a wrong current password refused, no way to
+deactivate yourself) is not something the data layer can answer. The mobile
+suite walks both new screens too.
 
-`pnpm check` is at 126 passing. Six failures predate all of this work - they are
-analytics assertions that assume a populated database and fail on an empty
-scratch one. Worth fixing, unrelated to auth.
+`pnpm check` passes against the local database. The failures noted here earlier
+were assertions that assume a populated one, and `pagination page 2` was the
+worst of them: it was testing the clamp rather than paging on a database too
+small to have a second page, so it now brings its own rows. Five remain - three
+analytics assertions, `byLocation` and one filter count - and they still fail on
+an *empty* scratch database, which is how the file's own header says to run it.
+They predate all of this work and have nothing to do with auth, but the fix is
+the same one paging just had: bring the rows you are asserting about.
+
+`pnpm smoke` gained the missing piece: given `--url`, it checks over real HTTP
+that a signed-out page is sent to `/login` and that both API routes answer 401.
+Without a URL it says so rather than letting a green run imply it.
 
 **Deployment has not happened.** The branch is unpushed and `main` is untouched,
 so the live site is still the pre-auth, publicly-readable version. The order in
@@ -324,19 +358,18 @@ fail in production.
 **Middleware is not the boundary.** Covered above; repeated because it is the
 single most common way an app like this ends up effectively open.
 
-**Local development must not be gated into uselessness.** Sign-in needs a user,
-and `data/app.db` is untracked and recreated on demand. `pnpm seed` must create a
-known development user, or the first `pnpm dev` after this lands is a login
-screen nobody can get past.
+**Local development must not be gated into uselessness.** *Handled:* `pnpm seed`
+creates `dev@kitaab.test` / `kitaab-dev`, local file only and never on
+`--remote`. It is an **admin** on purpose - seeded rows are inserted by a script
+and so have no `created_by`, which makes them invisible to a maintainer. A
+seeded maintainer would sign in successfully to an empty app and look like a
+bug.
 
-**The `.env.local` trap applies to the session secret too.** `src/lib/db.ts`
-documents at length how `vercel env pull` nearly pointed local development at
-live data. A session secret pulled the same way is less dangerous but wants the
-same discipline: separate values local and deployed, never the production secret
-in a dev shell.
-
-**Rotating the session secret signs everybody out.** Fine, but it should be a
-decision rather than a surprise during an unrelated deployment.
+**There is no session secret, in the end.** The plan assumed one and both
+pitfalls here were about handling it. Sessions became rows with random opaque
+tokens rather than signed ones, so there is nothing to pull into `.env.local`,
+nothing to rotate, and no new environment variable. The `.env.local` discipline
+still applies to the *database* URL, which `src/lib/db.ts` documents at length.
 
 **`ALTER TABLE` is not idempotent in SQLite.** `SCHEMA` is built entirely from
 `IF NOT EXISTS` statements and is re-run freely. The three attribution columns
@@ -373,49 +406,60 @@ cookie expires.
 
 ## 6. Test and deployment impact
 
-**Tests.** `pnpm e2e` and `pnpm test:ui` drive a real browser from an
-unauthenticated start and will **all fail** the moment Phase 3 lands. They need a
-seeded test user and a programmatic sign-in helper before the flows they actually
-exercise. Budget this as part of Phase 3, not as cleanup.
+**Tests.** *Done.* `pnpm e2e` and `pnpm test:ui` drove a real browser from an
+unauthenticated start and all failed the moment Phase 3 landed, exactly as
+budgeted. `scripts/ui/make-session.ts` now creates the account and the session
+and hands every suite the token.
 
 `pnpm smoke` and `pnpm smoke:remote` go through the data layer rather than HTTP,
-so they keep passing — which is its own hazard, since a green smoke test would no
-longer tell you the app rejects anonymous traffic. Add an assertion that an
-unauthenticated HTTP request is turned away.
+so they kept passing — which is its own hazard, since a green smoke test would
+no longer tell you the app rejects anonymous traffic. *Closed:* pass `--url` and
+it checks over HTTP that a signed-out page is redirected to `/login` and that
+`/api/search` and `/api/export` answer 401. With no URL it prints a line saying
+that nothing checked it, rather than staying quiet.
 
 **Deployment order.**
 
 1. `pnpm export:sql:remote` first. The changes are additive and safe; take the
    rollback anyway.
-2. Add the session secret to Vercel's environment.
-3. `pnpm db:push:remote`, then the `ALTER` migration against the remote.
-4. `pnpm user:add` against the remote to create the first admin — before the
-   deployment that closes the app, or nobody can get in.
-5. Deploy.
-6. `pnpm smoke:remote`, and confirm by hand that a signed-out browser is
-   redirected.
+2. `pnpm db:push:remote`. It carries the `ALTER` migration with it —
+   `addMissingColumns()` runs inside `pushSchema()`, so this is one command
+   rather than two.
+3. `KITAAB_USE_REMOTE=1 pnpm user:add you@example.com "Your Name" --admin`, to
+   create the first admin — **before** the deployment that closes the app, or
+   nobody can get in. Sign-up would only make a maintainer, and a maintainer
+   sees none of the records that were copied up.
+4. Deploy.
+5. `pnpm smoke:remote --url https://<the deployment>`, which now covers both
+   halves: the data layer, and a signed-out request being turned away.
 
 Remote schema is never pushed implicitly — `ensureSchema()` skips non-file
-targets by design — so steps 3 and 4 are deliberate and manual.
+targets by design — so steps 2 and 3 are deliberate and manual.
 
-New environment variable: a session secret, added to `.env.example` and to
-Vercel. No other configuration changes.
+**No new environment variable.** The plan assumed a session secret; sessions
+ended up as rows with random tokens, so there is nothing to add to `.env.example`
+or to Vercel. No configuration changes at all.
 
 ---
 
 ## 7. Open questions
 
-**Next 16 API mechanics.** Auth lands squarely on the APIs this version changed:
-the request-interception file's name and runtime, the cookie API's shape, and
-route-handler defaults. The architecture above does not depend on the answers,
-but the implementation does, so confirm each against the existing code or the
-published docs rather than assuming the older conventions.
+These are settled now; kept because the answers are the reasoning.
 
-**Roles.** `admin` and `member` are assumed. If every member may edit everything,
-`role` only gates user management — which is fine, and leaves room later.
+**Next 16 API mechanics.** *Answered by building it.* No request-interception
+file exists at all — the boundary is `requireUser()` per page, action and route
+handler. The cookie API is async (`await cookies()`), and route handlers are
+dynamic by the act of reading one.
 
-**Session lifetime.** 30 days rolling is assumed. Shorter is safer for data this
-sensitive; it is one constant.
+**Roles.** Resolved as `admin` and **`maintainer`**, not `member` — the word
+changed with the meaning. Role does not only gate user management: it *is* the
+visibility rule, carried by `Actor` through the whole query layer. Rows written
+under the old name are renamed by `pushSchema()`, since a role matching neither
+branch of the union would be worse than either.
+
+**Session lifetime.** 30 days rolling, as assumed, refreshed only inside the
+last day so a page load is not a write. Still one constant
+(`SESSION_TTL_DAYS`) if this data wants shorter.
 
 ---
 
