@@ -1,5 +1,6 @@
 /** Ad-hoc verification of the validation + query layers against a scratch
  *  database. Run with: KITAAB_DB_URL=file:/tmp/check.db pnpm check */
+import { readFileSync } from "node:fs";
 import { assessmentInput, warningsFor } from "../src/lib/schema.ts";
 import { FLAGS, parseFilters } from "../src/lib/filters.ts";
 import { VIEWS, headerFor, matchLocation, matchView } from "../src/lib/views.ts";
@@ -10,7 +11,7 @@ import {
   locationCounts, monthlyActivity, railCounts, removeExtra, setExtra,
   statusBreakdown, summary, updateAssessment, updateInlineField,
 } from "../src/lib/queries.ts";
-import { first, pushSchema, run } from "../src/lib/db.ts";
+import { first, pushSchema, run, shouldMigrateOnBuild, verifySchema } from "../src/lib/db.ts";
 import { activityFor, recentActivity } from "../src/lib/activity.ts";
 import {
   MAX_ATTEMPTS, MIN_PASSWORD, clearAttempts, createSession, createUser, deactivateUser,
@@ -356,6 +357,44 @@ ok("listUsers leaves out the deactivated",
    !(await listUsers()).some((u) => u.email === "chk-user@example.com"));
 ok("listUsers carries no password hash",
    (await listUsers()).every((u) => !("passwordHash" in u) && !("password_hash" in u)));
+
+/* ---- the deployment migrates itself ----
+
+   These guards decide whether a build touches a live database, so they are
+   asserted rather than trusted. The failure they exist to prevent has already
+   happened once: auth shipped to a database that had none of its tables. */
+const LOCAL = true, REMOTE = false;
+ok("a local file is never migrated by the build",
+   !shouldMigrateOnBuild({ VERCEL_ENV: "production" }, LOCAL).run);
+ok("a production deployment migrates",
+   shouldMigrateOnBuild({ VERCEL_ENV: "production" }, REMOTE).run);
+ok("a preview deployment does not",
+   !shouldMigrateOnBuild({ VERCEL_ENV: "preview" }, REMOTE).run);
+ok("a local build against a remote does not",
+   !shouldMigrateOnBuild({}, REMOTE).run);
+ok("but it can be forced",
+   shouldMigrateOnBuild({ VERCEL_ENV: "preview", KITAAB_MIGRATE: "1" }, REMOTE).run);
+ok("forcing still cannot touch a local file",
+   !shouldMigrateOnBuild({ KITAAB_MIGRATE: "1" }, LOCAL).run);
+/* Two facts about package.json, because both are one careless edit away from
+   pointing a developer's `pnpm build` at the live database. */
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { scripts: Record<string, string> };
+ok("the build runs the migration first", pkg.scripts.build.startsWith("pnpm migrate &&"));
+ok("migrate does not load .env.local", !pkg.scripts.migrate.includes("--env-file"),
+   pkg.scripts.migrate);
+
+ok("every skip says why", [
+     shouldMigrateOnBuild({ VERCEL_ENV: "preview" }, REMOTE),
+     shouldMigrateOnBuild({}, REMOTE),
+     shouldMigrateOnBuild({ VERCEL_ENV: "production" }, LOCAL),
+   ].every((d) => d.why.length > 0));
+
+// The schema this very run applied has to be complete, or the check that
+// guards deployments is not checking anything.
+ok("verifySchema finds nothing missing after pushSchema",
+   (await verifySchema()).length === 0, await verifySchema());
 
 /* ---- visibility: admins see everything, maintainers see only their own ---- */
 const clearScopeFixture = async () => {

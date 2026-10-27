@@ -254,12 +254,80 @@ export async function pushSchema(): Promise<void> {
 }
 
 /** A local file is created and migrated on demand, which keeps `pnpm dev`
- *  zero-setup. A remote database is not touched implicitly: run
- *  `pnpm db:push` against it deliberately. */
+ *  zero-setup. A remote database is still never migrated from here - not
+ *  because nobody should migrate it, but because *a request* must not. See
+ *  `shouldMigrateOnBuild` below: deployments migrate once, at build time. */
 function ensureSchema(): Promise<void> {
   if (!IS_LOCAL_FILE) return Promise.resolve();
   globalForDb.__kitaabSchema ??= pushSchema();
   return globalForDb.__kitaabSchema;
+}
+
+/* ---------------------------------------------------------------------------
+   Migrating a deployment
+
+   The auth tables once shipped to production without ever being created, and
+   the first request to touch `login_attempts` took the whole site down. The
+   schema was only ever applied by somebody remembering to run
+   `pnpm db:push:remote`, and one deployment forgot.
+
+   So a deployment now migrates itself - at **build time**, which is the part
+   that matters. Doing it per request would look simpler and be worse:
+   `addMissingColumns()` reads PRAGMA and then ALTERs, so two cold starts can
+   both see the column missing and both try to add it, and the loser crashes
+   with "duplicate column name". A build is one process, runs once, and runs
+   before any traffic reaches the new code.
+
+   Preview deployments are excluded by default. They share this database, and a
+   branch that is not merged yet should not be what decides production's shape.
+   Set KITAAB_MIGRATE=1 on an environment to opt it in anyway.
+--------------------------------------------------------------------------- */
+
+export function shouldMigrateOnBuild(
+  // A plain record rather than a shape: VERCEL_ENV is injected by the platform
+  // and not declared anywhere TypeScript can see.
+  env: Record<string, string | undefined> = process.env,
+  isLocalFile: boolean = IS_LOCAL_FILE,
+): { run: boolean; why: string } {
+  if (isLocalFile) {
+    return { run: false, why: "the target is a local file, which migrates itself on demand" };
+  }
+  if (env.KITAAB_MIGRATE === "1") return { run: true, why: "KITAAB_MIGRATE=1" };
+  if (env.VERCEL_ENV === "production") return { run: true, why: "VERCEL_ENV=production" };
+  return {
+    run: false,
+    why: `VERCEL_ENV is ${env.VERCEL_ENV ?? "unset"}, not production - set KITAAB_MIGRATE=1 to force`,
+  };
+}
+
+/** What SCHEMA says should exist, derived from SCHEMA itself so that a table or
+ *  trigger added there is checked here without anyone remembering to. Returns
+ *  the names of anything missing, so a caller can fail loudly. */
+export async function verifySchema(): Promise<string[]> {
+  const tables = [...SCHEMA.matchAll(/CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS (\w+)/g)].map(
+    (m) => m[1],
+  );
+  const triggers = [...SCHEMA.matchAll(/CREATE TRIGGER IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
+
+  const found = await db.execute(
+    "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'trigger')",
+  );
+  const nameAt = found.columns.indexOf("name");
+  const present = new Set(found.rows.map((r) => String(r[nameAt])));
+
+  const missing: string[] = [];
+  for (const t of tables) if (!present.has(t)) missing.push(`table ${t}`);
+  for (const t of triggers) if (!present.has(t)) missing.push(`trigger ${t}`);
+
+  for (const { table, column } of ADDED_COLUMNS) {
+    // A missing table is already reported; do not report its columns twice.
+    if (!present.has(table)) continue;
+    const info = await db.execute(`PRAGMA table_info(${table})`);
+    const at = info.columns.indexOf("name");
+    if (!info.rows.some((row) => row[at] === column)) missing.push(`column ${table}.${column}`);
+  }
+
+  return missing;
 }
 
 /* ---------------------------------------------------------------------------

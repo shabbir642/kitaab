@@ -236,6 +236,8 @@ To work against it from your machine:
 npx vercel link                    # once, to attach this directory to the project
 npx vercel env pull .env.local     # writes the injected vars locally
 pnpm db:push:remote                # create the tables and the FTS index there
+                                   # (deploys do this themselves; this is for
+                                   #  setting one up before the first deploy)
 pnpm copy-up --yes                 # move the local records up (dry runs without --yes)
 ```
 
@@ -283,9 +285,29 @@ pnpm smoke:remote --url https://kitaab.example.com
 
 Two things worth knowing:
 
-- **A remote database is never migrated implicitly.** A local file creates and
-  migrates itself so `pnpm dev` is zero-setup; a hosted one only changes when
-  you run `pnpm db:push` at it deliberately.
+- **A deployment migrates itself, at build time.** `pnpm build` runs
+  `pnpm migrate` first, so Vercel applies the schema before the new code serves
+  a request, and a migration that fails or leaves anything missing fails the
+  build rather than replacing a working deployment with a broken one. This
+  exists because it went wrong once: auth shipped to a database that had none
+  of its tables, and the first request to touch `login_attempts` took the site
+  down.
+- **A *request* still never migrates anything.** `ensureSchema()` creates and
+  migrates a local file on demand, which keeps `pnpm dev` zero-setup, and does
+  nothing for a remote. That is not caution, it is correctness: adding a column
+  means reading `PRAGMA` and then `ALTER`, so two serverless cold starts can
+  both see it missing and both try to add it, and the loser crashes. A build is
+  one process, once, before any traffic.
+- **Preview deployments do not migrate.** They share this database, and an
+  unmerged branch should not decide production's shape. Set `KITAAB_MIGRATE=1`
+  on an environment to opt it in.
+- **`pnpm migrate` deliberately does not read `.env.local`.** `vercel env pull`
+  writes `VERCEL=1` and `VERCEL_ENV=production` into that file next to the
+  Turso credentials, so loading it would make every laptop's `pnpm build`
+  migrate live data. Off Vercel there are no Turso variables, the target is the
+  local file, and it exits having done nothing. `pnpm db:push:remote` is still
+  the way to migrate a remote by hand, and that one reads `.env.local` on
+  purpose — because a person typed `:remote`.
 - **Every query is a network round trip once deployed.** Locally a query is a
   ~0.1 ms file read, so the sequential style cost nothing; over a network it
   costs 20–60 ms each. The pages therefore issue their independent reads with
