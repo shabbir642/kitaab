@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "pnpm migrate && next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
     "seed": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/seed.ts",
@@ -22,7 +22,8 @@
     "smoke:remote": "KITAAB_USE_REMOTE=1 pnpm smoke",
     "export:sql": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/export-sql.ts",
     "export:sql:remote": "KITAAB_USE_REMOTE=1 pnpm export:sql",
-    "restore:sql": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/restore-sql.ts"
+    "restore:sql": "node --env-file-if-exists=.env.local --import ./scripts/register.mjs scripts/restore-sql.ts",
+    "migrate": "node --import ./scripts/register.mjs scripts/migrate.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

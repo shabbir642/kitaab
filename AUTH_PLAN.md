@@ -423,7 +423,9 @@ that nothing checked it, rather than staying quiet.
 
 1. `pnpm export:sql:remote` first. The changes are additive and safe; take the
    rollback anyway.
-2. `pnpm db:push:remote`. It carries the `ALTER` migration with it —
+2. `pnpm db:push:remote`, if the database has never been migrated. A deploy
+   now applies the schema at build time, so this step is only for standing a
+   database up in the first place. It carries the `ALTER` migration with it —
    `addMissingColumns()` runs inside `pushSchema()`, so this is one command
    rather than two.
 3. `KITAAB_USE_REMOTE=1 pnpm user:add you@example.com "Your Name" --admin`, to

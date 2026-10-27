@@ -254,12 +254,80 @@ export async function pushSchema(): Promise<void> {
 }
 
 /** A local file is created and migrated on demand, which keeps `pnpm dev`
- *  zero-setup. A remote database is not touched implicitly: run
- *  `pnpm db:push` against it deliberately. */
+ *  zero-setup. A remote database is still never migrated from here - not
+ *  because nobody should migrate it, but because *a request* must not. See
+ *  `shouldMigrateOnBuild` below: deployments migrate once, at build time. */
 function ensureSchema(): Promise<void> {
   if (!IS_LOCAL_FILE) return Promise.resolve();
   globalForDb.__kitaabSchema ??= pushSchema();
   return globalForDb.__kitaabSchema;
+}
+
+/* ---------------------------------------------------------------------------
+   Migrating a deployment
+
+   The auth tables once shipped to production without ever being created, and
+   the first request to touch `login_attempts` took the whole site down. The
+   schema was only ever applied by somebody remembering to run
+   `pnpm db:push:remote`, and one deployment forgot.
+
+   So a deployment now migrates itself - at **build time**, which is the part
+   that matters. Doing it per request would look simpler and be worse:
+   `addMissingColumns()` reads PRAGMA and then ALTERs, so two cold starts can
+   both see the column missing and both try to add it, and the loser crashes
+   with "duplicate column name". A build is one process, runs once, and runs
+   before any traffic reaches the new code.
+
+   Preview deployments are excluded by default. They share this database, and a
+   branch that is not merged yet should not be what decides production's shape.
+   Set KITAAB_MIGRATE=1 on an environment to opt it in anyway.
+--------------------------------------------------------------------------- */
+
+export function shouldMigrateOnBuild(
+  // A plain record rather than a shape: VERCEL_ENV is injected by the platform
+  // and not declared anywhere TypeScript can see.
+  env: Record<string, string | undefined> = process.env,
+  isLocalFile: boolean = IS_LOCAL_FILE,
+): { run: boolean; why: string } {
+  if (isLocalFile) {
+    return { run: false, why: "the target is a local file, which migrates itself on demand" };
+  }
+  if (env.KITAAB_MIGRATE === "1") return { run: true, why: "KITAAB_MIGRATE=1" };
+  if (env.VERCEL_ENV === "production") return { run: true, why: "VERCEL_ENV=production" };
+  return {
+    run: false,
+    why: `VERCEL_ENV is ${env.VERCEL_ENV ?? "unset"}, not production - set KITAAB_MIGRATE=1 to force`,
+  };
+}
+
+/** What SCHEMA says should exist, derived from SCHEMA itself so that a table or
+ *  trigger added there is checked here without anyone remembering to. Returns
+ *  the names of anything missing, so a caller can fail loudly. */
+export async function verifySchema(): Promise<string[]> {
+  const tables = [...SCHEMA.matchAll(/CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS (\w+)/g)].map(
+    (m) => m[1],
+  );
+  const triggers = [...SCHEMA.matchAll(/CREATE TRIGGER IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
+
+  const found = await db.execute(
+    "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'trigger')",
+  );
+  const nameAt = found.columns.indexOf("name");
+  const present = new Set(found.rows.map((r) => String(r[nameAt])));
+
+  const missing: string[] = [];
+  for (const t of tables) if (!present.has(t)) missing.push(`table ${t}`);
+  for (const t of triggers) if (!present.has(t)) missing.push(`trigger ${t}`);
+
+  for (const { table, column } of ADDED_COLUMNS) {
+    // A missing table is already reported; do not report its columns twice.
+    if (!present.has(table)) continue;
+    const info = await db.execute(`PRAGMA table_info(${table})`);
+    const at = info.columns.indexOf("name");
+    if (!info.rows.some((row) => row[at] === column)) missing.push(`column ${table}.${column}`);
+  }
+
+  return missing;
 }
 
 /* ---------------------------------------------------------------------------
@@ -279,9 +347,58 @@ function toObjects<T>(rs: ResultSet): T[] {
   });
 }
 
+/* ---------------------------------------------------------------------------
+   When the schema is behind the code
+
+   `SQLITE_UNKNOWN: no such table: login_attempts` is what a deployment serves
+   when its database has not been migrated, and it tells whoever is reading the
+   logs nothing about why, which database, or what to do. That is not
+   hypothetical: the auth tables once shipped without ever being created, and
+   the raw driver error sent the search looking for a bug in the query.
+
+   Deployments migrate themselves now, so this should be unreachable. It is
+   here because "should be unreachable" is exactly what was believed last time.
+
+   Only the user-facing helpers below wrap their errors. pushSchema() and
+   verifySchema() leave theirs raw - when the migration itself is what failed,
+   the driver's own words are the useful ones.
+--------------------------------------------------------------------------- */
+
+const MISSING_OBJECT = /no such (table|column): ([\w.]+)/i;
+
+/** Returns a clearer error, or null when this was some other failure. The
+ *  original is kept as `cause`, so nothing is lost on the way out. */
+export function schemaErrorFor(err: unknown, isLocalFile: boolean = IS_LOCAL_FILE): Error | null {
+  const found = MISSING_OBJECT.exec(err instanceof Error ? err.message : String(err));
+  if (!found) return null;
+
+  const [, kind, name] = found;
+  // describeTarget() names the host and never the token.
+  const where = `${describeTarget()} has no ${kind} "${name}"`;
+
+  // On a local file the schema applies itself, so a gap is far more likely to
+  // be a typo in the SQL than an unmigrated database. Say so rather than
+  // sending someone to run a migration that has already run.
+  const advice = isLocalFile
+    ? "A local file migrates itself on demand, so this is usually a typo in the SQL - " +
+      "or a schema change that could not apply. `pnpm db:push` will say which."
+    : "The schema is behind the code. A deployment applies it during its build, so that " +
+      "step was skipped or failed; `pnpm db:push:remote` applies it by hand.";
+
+  return new Error(`Kitaab: ${where}. ${advice}`, { cause: err });
+}
+
+async function execute(sql: string, args: InValue[]): Promise<ResultSet> {
+  try {
+    return await db.execute({ sql, args });
+  } catch (err) {
+    throw schemaErrorFor(err) ?? err;
+  }
+}
+
 export async function all<T>(sql: string, args: InValue[] = []): Promise<T[]> {
   await ensureSchema();
-  return toObjects<T>(await db.execute({ sql, args }));
+  return toObjects<T>(await execute(sql, args));
 }
 
 export async function first<T>(sql: string, args: InValue[] = []): Promise<T | undefined> {
@@ -293,7 +410,7 @@ export async function run(
   args: InValue[] = [],
 ): Promise<{ changes: number; lastInsertRowid: number }> {
   await ensureSchema();
-  const rs = await db.execute({ sql, args });
+  const rs = await execute(sql, args);
   return {
     changes: Number(rs.rowsAffected ?? 0),
     lastInsertRowid: Number(rs.lastInsertRowid ?? 0),

@@ -43,6 +43,15 @@ rather than redirecting, because they answer machines.
 a form. Admin comes from `pnpm user:add --admin` or from an existing admin on
 `/admin/users`.
 
+**A deployment migrates its own database, at build time.** `pnpm build` runs
+`pnpm migrate` first; it applies the schema and then verifies it, and a gap
+fails the build. Do not move this to request time — `addMissingColumns()` reads
+`PRAGMA` then `ALTER`s, so concurrent cold starts race and the loser crashes.
+Do not add `--env-file-if-exists` to the `migrate` script either: `vercel env
+pull` writes `VERCEL_ENV=production` into `.env.local`, so loading it would
+make every laptop's `pnpm build` migrate live data. Both are asserted in
+`pnpm check`.
+
 **Destructive scripts need to be asked for.** `trim`, `copy-up --replace`,
 `restore:sql`, `seed --reset`, and anything `:remote` can destroy live data.
 Dry-run first; never point one at the remote without being told to explicitly.
