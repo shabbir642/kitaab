@@ -11,7 +11,9 @@ import {
   locationCounts, monthlyActivity, railCounts, removeExtra, setExtra,
   statusBreakdown, summary, updateAssessment, updateInlineField,
 } from "../src/lib/queries.ts";
-import { first, pushSchema, run, shouldMigrateOnBuild, verifySchema } from "../src/lib/db.ts";
+import {
+  first, pushSchema, run, schemaErrorFor, shouldMigrateOnBuild, verifySchema,
+} from "../src/lib/db.ts";
 import { activityFor, recentActivity } from "../src/lib/activity.ts";
 import {
   MAX_ATTEMPTS, MIN_PASSWORD, clearAttempts, createSession, createUser, deactivateUser,
@@ -390,6 +392,31 @@ ok("every skip says why", [
      shouldMigrateOnBuild({}, REMOTE),
      shouldMigrateOnBuild({ VERCEL_ENV: "production" }, LOCAL),
    ].every((d) => d.why.length > 0));
+
+/* The error a stale database gives back. The raw driver message is what sent
+   the last investigation in the wrong direction, so the replacement is
+   asserted to carry the missing name and to point at the right remedy. */
+const missingTable = new Error("SQLITE_UNKNOWN: SQLite error: no such table: login_attempts");
+const remote = schemaErrorFor(missingTable, false);
+ok("a missing table is reported as a schema problem", remote !== null);
+ok("it names what is missing", !!remote?.message.includes("login_attempts"));
+ok("it names the remedy for a deployment", !!remote?.message.includes("pnpm db:push:remote"));
+ok("it keeps the original as cause", remote?.cause === missingTable);
+
+const local = schemaErrorFor(new Error("no such column: created_by"), true);
+ok("a missing column is caught too", !!local?.message.includes("created_by"));
+ok("a local file is told it is probably a typo", !!local?.message.includes("typo"));
+ok("a local file is not sent to the remote", !local?.message.includes(":remote"));
+
+ok("an unrelated failure is left alone",
+   schemaErrorFor(new Error("UNIQUE constraint failed: users.email")) === null);
+ok("a syntax error is left alone",
+   schemaErrorFor(new Error('near "SELCT": syntax error')) === null);
+
+// A keyword search must never be mistaken for a stale schema: ftsQuery quotes
+// every token, so FTS5 cannot raise "no such column" from user input.
+ok("a colon in a keyword search does not reach FTS as a column",
+   (await listAssessments(f({ q: "status:open" }), ADMIN)).total >= 0);
 
 // The schema this very run applied has to be complete, or the check that
 // guards deployments is not checking anything.

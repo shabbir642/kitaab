@@ -347,9 +347,58 @@ function toObjects<T>(rs: ResultSet): T[] {
   });
 }
 
+/* ---------------------------------------------------------------------------
+   When the schema is behind the code
+
+   `SQLITE_UNKNOWN: no such table: login_attempts` is what a deployment serves
+   when its database has not been migrated, and it tells whoever is reading the
+   logs nothing about why, which database, or what to do. That is not
+   hypothetical: the auth tables once shipped without ever being created, and
+   the raw driver error sent the search looking for a bug in the query.
+
+   Deployments migrate themselves now, so this should be unreachable. It is
+   here because "should be unreachable" is exactly what was believed last time.
+
+   Only the user-facing helpers below wrap their errors. pushSchema() and
+   verifySchema() leave theirs raw - when the migration itself is what failed,
+   the driver's own words are the useful ones.
+--------------------------------------------------------------------------- */
+
+const MISSING_OBJECT = /no such (table|column): ([\w.]+)/i;
+
+/** Returns a clearer error, or null when this was some other failure. The
+ *  original is kept as `cause`, so nothing is lost on the way out. */
+export function schemaErrorFor(err: unknown, isLocalFile: boolean = IS_LOCAL_FILE): Error | null {
+  const found = MISSING_OBJECT.exec(err instanceof Error ? err.message : String(err));
+  if (!found) return null;
+
+  const [, kind, name] = found;
+  // describeTarget() names the host and never the token.
+  const where = `${describeTarget()} has no ${kind} "${name}"`;
+
+  // On a local file the schema applies itself, so a gap is far more likely to
+  // be a typo in the SQL than an unmigrated database. Say so rather than
+  // sending someone to run a migration that has already run.
+  const advice = isLocalFile
+    ? "A local file migrates itself on demand, so this is usually a typo in the SQL - " +
+      "or a schema change that could not apply. `pnpm db:push` will say which."
+    : "The schema is behind the code. A deployment applies it during its build, so that " +
+      "step was skipped or failed; `pnpm db:push:remote` applies it by hand.";
+
+  return new Error(`Kitaab: ${where}. ${advice}`, { cause: err });
+}
+
+async function execute(sql: string, args: InValue[]): Promise<ResultSet> {
+  try {
+    return await db.execute({ sql, args });
+  } catch (err) {
+    throw schemaErrorFor(err) ?? err;
+  }
+}
+
 export async function all<T>(sql: string, args: InValue[] = []): Promise<T[]> {
   await ensureSchema();
-  return toObjects<T>(await db.execute({ sql, args }));
+  return toObjects<T>(await execute(sql, args));
 }
 
 export async function first<T>(sql: string, args: InValue[] = []): Promise<T | undefined> {
@@ -361,7 +410,7 @@ export async function run(
   args: InValue[] = [],
 ): Promise<{ changes: number; lastInsertRowid: number }> {
   await ensureSchema();
-  const rs = await db.execute({ sql, args });
+  const rs = await execute(sql, args);
   return {
     changes: Number(rs.rowsAffected ?? 0),
     lastInsertRowid: Number(rs.lastInsertRowid ?? 0),
